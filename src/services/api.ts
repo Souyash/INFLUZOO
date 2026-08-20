@@ -1,6 +1,8 @@
 import { Creator, Campaign, Deal, AuditLog, PlatformConfig, AdminMetrics, User, UserRole } from '../types';
 
-const API_BASE = '/api';
+const API_BASE = import.meta.env.VITE_API_URL 
+  ? `${import.meta.env.VITE_API_URL.replace(/\/$/, '')}/api` 
+  : '/api';
 
 function getAuthHeaders(): HeadersInit {
   const token = localStorage.getItem('influzo_session_token');
