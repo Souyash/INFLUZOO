@@ -1,0 +1,546 @@
+{
+  "users": [
+    {
+      "id": "u-admin",
+      "emailOrPhone": "admin@influzo.com",
+      "name": "Alex Rivera (Super Admin)",
+      "role": "admin",
+      "avatar": "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400&auto=format&fit=crop&q=80",
+      "onboarded": true,
+      "createdAt": "2026-08-01"
+    },
+    {
+      "id": "u-creator-1",
+      "emailOrPhone": "elena@techreviews.com",
+      "name": "Elena Rostova",
+      "role": "creator",
+      "avatar": "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400&auto=format&fit=crop&q=80",
+      "onboarded": true,
+      "creatorProfileId": "c-1",
+      "createdAt": "2026-08-05"
+    },
+    {
+      "id": "u-brand-1",
+      "emailOrPhone": "growth@taskflow.ai",
+      "name": "TaskFlow AI Growth Team",
+      "role": "brand",
+      "avatar": "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=120&auto=format&fit=crop&q=80",
+      "onboarded": true,
+      "createdAt": "2026-08-08"
+    },
+    {
+      "id": "u-1787064107235",
+      "emailOrPhone": "bcjvhsjhcsbjk",
+      "name": "bcjvhsjhcsbjk",
+      "role": "brand",
+      "avatar": "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400&auto=format&fit=crop&q=80",
+      "onboarded": false,
+      "createdAt": "2026-08-18"
+    }
+  ],
+  "sessions": [],
+  "otpCodes": [
+    {
+      "emailOrPhone": "sklakndb",
+      "code": "395572",
+      "expiresAt": 1787064431713,
+      "role": "creator"
+    },
+    {
+      "emailOrPhone": "jksbcjkbs",
+      "code": "714630",
+      "expiresAt": 1787064437332,
+      "role": "creator"
+    }
+  ],
+  "config": {
+    "platformTakeRatePercent": 7.5,
+    "minEscrowDepositUSD": 250,
+    "autoReleaseAfterDays": 14,
+    "aiMatchingModel": "Gemini 2.0 Flash Enterprise",
+    "maintenanceMode": false
+  },
+  "auditLogs": [
+    {
+      "id": "log-1787064137333",
+      "action": "AUTH_OTP_SENT",
+      "entityType": "auth",
+      "entityId": "jksbcjkbs",
+      "details": "OTP code dispatched to jksbcjkbs for creator authentication.",
+      "actor": "Auth Service",
+      "timestamp": "2026-08-18 14:42:17"
+    },
+    {
+      "id": "log-1787064131714",
+      "action": "AUTH_OTP_SENT",
+      "entityType": "auth",
+      "entityId": "sklakndb",
+      "details": "OTP code dispatched to sklakndb for creator authentication.",
+      "actor": "Auth Service",
+      "timestamp": "2026-08-18 14:42:11"
+    },
+    {
+      "id": "log-1787064107236",
+      "action": "USER_SIGNUP",
+      "entityType": "auth",
+      "entityId": "u-1787064107235",
+      "details": "New user registered via OTP: bcjvhsjhcsbjk (brand)",
+      "actor": "Admin",
+      "timestamp": "2026-08-18 14:41:47"
+    },
+    {
+      "id": "log-1787064105712",
+      "action": "AUTH_OTP_SENT",
+      "entityType": "auth",
+      "entityId": "bcjvhsjhcsbjk",
+      "details": "OTP code dispatched to bcjvhsjhcsbjk for brand authentication.",
+      "actor": "Auth Service",
+      "timestamp": "2026-08-18 14:41:45"
+    },
+    {
+      "id": "log-1786880247081",
+      "action": "DEAL_OFFER_SENT_ESCROW_LOCKED",
+      "entityType": "deal",
+      "entityId": "deal-1786880247060",
+      "details": "Brand Acme Growth Labs booked Marcus Vance with $1,200 locked into escrow.",
+      "actor": "Brand: Acme Growth Labs",
+      "timestamp": "2026-08-16 11:37:27"
+    },
+    {
+      "id": "log-1786880232677",
+      "action": "CREATOR_VERIFICATION_REJECTED",
+      "entityType": "creator",
+      "entityId": "c-1",
+      "details": "Admin rejected verification for Elena Rostova (@elenatech). Reason: Failed follower authenticity audit criteria.",
+      "actor": "Super Admin",
+      "timestamp": "2026-08-16 11:37:12"
+    },
+    {
+      "id": "log-1786880206327",
+      "action": "CREATOR_VERIFICATION_APPROVED",
+      "entityType": "creator",
+      "entityId": "c-99",
+      "details": "Admin approved verification for Zara Kova (@zarafashiontech). ",
+      "actor": "Super Admin",
+      "timestamp": "2026-08-16 11:36:46"
+    },
+    {
+      "id": "log-1",
+      "action": "ESCROW_DEPOSIT_LOCKED",
+      "entityType": "escrow",
+      "entityId": "deal-101",
+      "details": "TaskFlow AI locked $1,600 into Smart Escrow for Elena Rostova.",
+      "actor": "Brand: TaskFlow AI",
+      "timestamp": "2026-08-10 14:22:05"
+    },
+    {
+      "id": "log-2",
+      "action": "CREATOR_VERIFIED",
+      "entityType": "creator",
+      "entityId": "c-1",
+      "details": "Super Admin verified Elena Rostova (@elenatech) with 98.8% audience authenticity score.",
+      "actor": "Super Admin: Alex Rivera",
+      "timestamp": "2026-08-11 09:15:30"
+    },
+    {
+      "id": "log-3",
+      "action": "ESCROW_RELEASED",
+      "entityType": "escrow",
+      "entityId": "deal-102",
+      "details": "$1,200 released from Escrow to Marcus Vance following verified Instagram Reel live post.",
+      "actor": "System: Smart Contract",
+      "timestamp": "2026-08-14 18:04:12"
+    }
+  ],
+  "creators": [
+    {
+      "id": "c-1",
+      "name": "Elena Rostova",
+      "handle": "@elenatech",
+      "avatar": "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400&auto=format&fit=crop&q=80",
+      "coverImage": "https://images.unsplash.com/photo-1518770660439-4636190af475?w=1200&auto=format&fit=crop&q=80",
+      "bio": "AI product reviewer, productivity software geek & UI/UX enthusiast. Helping 350K+ developers & tech enthusiasts discover the best workflow tools.",
+      "location": "San Francisco, CA",
+      "verified": false,
+      "verificationStatus": "rejected",
+      "authenticityScore": 98.8,
+      "rating": 4.98,
+      "reviewCount": 42,
+      "niches": [
+        "Tech & AI",
+        "Lifestyle & Travel"
+      ],
+      "primaryPlatform": "youtube",
+      "followersCount": 385000,
+      "avgEngagementRate": 6.4,
+      "avgViewsPerPost": 64200,
+      "priceRange": "$800 - $3,200",
+      "platforms": [
+        {
+          "platform": "youtube",
+          "handle": "ElenaTechReviews",
+          "followers": 280000,
+          "engagementRate": 7.1,
+          "avgViews": 85000,
+          "profileUrl": "#"
+        },
+        {
+          "platform": "twitter",
+          "handle": "@elenatech",
+          "followers": 65000,
+          "engagementRate": 4.2,
+          "avgViews": 32000,
+          "profileUrl": "#"
+        },
+        {
+          "platform": "tiktok",
+          "handle": "@elena_ai_tips",
+          "followers": 40000,
+          "engagementRate": 8.5,
+          "avgViews": 55000,
+          "profileUrl": "#"
+        }
+      ],
+      "audienceDemographics": {
+        "topCountries": [
+          {
+            "name": "United States",
+            "percentage": 48
+          },
+          {
+            "name": "United Kingdom",
+            "percentage": 18
+          },
+          {
+            "name": "Germany",
+            "percentage": 12
+          },
+          {
+            "name": "Canada",
+            "percentage": 9
+          },
+          {
+            "name": "Other",
+            "percentage": 13
+          }
+        ],
+        "ageGroups": [
+          {
+            "label": "18-24",
+            "percentage": 22
+          },
+          {
+            "label": "25-34",
+            "percentage": 54
+          },
+          {
+            "label": "35-44",
+            "percentage": 18
+          },
+          {
+            "label": "45+",
+            "percentage": 6
+          }
+        ],
+        "genderSplit": {
+          "female": 38,
+          "male": 59,
+          "other": 3
+        }
+      },
+      "stats": {
+        "completedCollabs": 54,
+        "onTimeRate": 100,
+        "responseHours": 2,
+        "repeatBrandRate": 88
+      },
+      "sampleWork": [
+        {
+          "id": "sw-1",
+          "title": "Top 5 AI Code Editors in 2026",
+          "thumbnail": "https://images.unsplash.com/photo-1555066931-4365d14bab8c?w=600&auto=format&fit=crop&q=80",
+          "views": "142K views",
+          "platform": "youtube",
+          "brandCollab": "Cursor & Supabase"
+        }
+      ],
+      "packages": [
+        {
+          "id": "pkg-1",
+          "title": "Dedicated YouTube Integration (60-90s)",
+          "description": "Mid-roll sponsor integration with pinned comment link, dedicated UTM tracking, and full usage rights for 30 days.",
+          "price": 1600,
+          "deliverables": [
+            "60-90s Mid-Roll Integration",
+            "Pinned Comment + Description Link",
+            "30-Day Digital Ad Usage Rights"
+          ],
+          "turnaroundDays": 5,
+          "popular": true
+        }
+      ],
+      "featured": true
+    },
+    {
+      "id": "c-2",
+      "name": "Marcus Vance",
+      "handle": "@marcusfitness",
+      "avatar": "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=400&auto=format&fit=crop&q=80",
+      "coverImage": "https://images.unsplash.com/photo-1517838277536-f5f99be501cd?w=1200&auto=format&fit=crop&q=80",
+      "bio": "Calisthenics coach, hybrid athlete & nutrition science advocate. Certified trainer helping 500k+ stay shredded and injury-free.",
+      "location": "Austin, TX",
+      "verified": true,
+      "verificationStatus": "verified",
+      "authenticityScore": 97.4,
+      "rating": 4.95,
+      "reviewCount": 38,
+      "niches": [
+        "Fitness & Health",
+        "Food & Culinary"
+      ],
+      "primaryPlatform": "instagram",
+      "followersCount": 520000,
+      "avgEngagementRate": 5.8,
+      "avgViewsPerPost": 92000,
+      "priceRange": "$600 - $2,400",
+      "platforms": [
+        {
+          "platform": "instagram",
+          "handle": "@marcus_vance_fit",
+          "followers": 340000,
+          "engagementRate": 6.2,
+          "avgViews": 110000,
+          "profileUrl": "#"
+        }
+      ],
+      "audienceDemographics": {
+        "topCountries": [
+          {
+            "name": "United States",
+            "percentage": 55
+          },
+          {
+            "name": "Australia",
+            "percentage": 14
+          }
+        ],
+        "ageGroups": [
+          {
+            "label": "18-24",
+            "percentage": 34
+          },
+          {
+            "label": "25-34",
+            "percentage": 48
+          }
+        ],
+        "genderSplit": {
+          "female": 32,
+          "male": 66,
+          "other": 2
+        }
+      },
+      "stats": {
+        "completedCollabs": 67,
+        "onTimeRate": 98,
+        "responseHours": 1,
+        "repeatBrandRate": 91
+      },
+      "sampleWork": [],
+      "packages": [
+        {
+          "id": "pkg-4",
+          "title": "Instagram Reel + 3x Story Sequence",
+          "description": "1 high-energy Reel showcasing product in workout routine + 3 swipe-up Stories with promo code.",
+          "price": 1200,
+          "deliverables": [
+            "1x 4K Instagram Reel",
+            "3x Story frames with sticker link"
+          ],
+          "turnaroundDays": 4,
+          "popular": true
+        }
+      ]
+    },
+    {
+      "id": "c-99",
+      "name": "Zara Kova",
+      "handle": "@zarafashiontech",
+      "avatar": "https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=400&auto=format&fit=crop&q=80",
+      "coverImage": "https://images.unsplash.com/photo-1469334031218-e382a71b716b?w=1200&auto=format&fit=crop&q=80",
+      "bio": "Wearable tech & futuristic cyber fashion creator. Applying for Influzo Verified Creator Program.",
+      "location": "Berlin, Germany",
+      "verified": true,
+      "verificationStatus": "verified",
+      "authenticityScore": 94.2,
+      "rating": 4.85,
+      "reviewCount": 14,
+      "niches": [
+        "Fashion & Apparel",
+        "Tech & AI"
+      ],
+      "primaryPlatform": "tiktok",
+      "followersCount": 180000,
+      "avgEngagementRate": 7.8,
+      "avgViewsPerPost": 48000,
+      "priceRange": "$450 - $1,500",
+      "platforms": [
+        {
+          "platform": "tiktok",
+          "handle": "@zarakova_tech",
+          "followers": 180000,
+          "engagementRate": 7.8,
+          "avgViews": 48000,
+          "profileUrl": "#"
+        }
+      ],
+      "audienceDemographics": {
+        "topCountries": [
+          {
+            "name": "Germany",
+            "percentage": 45
+          },
+          {
+            "name": "UK",
+            "percentage": 25
+          }
+        ],
+        "ageGroups": [
+          {
+            "label": "18-24",
+            "percentage": 55
+          },
+          {
+            "label": "25-34",
+            "percentage": 35
+          }
+        ],
+        "genderSplit": {
+          "female": 72,
+          "male": 25,
+          "other": 3
+        }
+      },
+      "stats": {
+        "completedCollabs": 12,
+        "onTimeRate": 100,
+        "responseHours": 2,
+        "repeatBrandRate": 80
+      },
+      "sampleWork": [],
+      "packages": [
+        {
+          "id": "pkg-99",
+          "title": "TikTok Tech Showcase",
+          "description": "1x aesthetic vertical video showing wearable device in outfit transition.",
+          "price": 550,
+          "deliverables": [
+            "1x TikTok Video",
+            "Link in Bio for 7 days"
+          ],
+          "turnaroundDays": 3
+        }
+      ]
+    }
+  ],
+  "campaigns": [
+    {
+      "id": "camp-1",
+      "title": "SaaS Productivity Launch Q3",
+      "brandName": "TaskFlow AI",
+      "brandLogo": "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=120&auto=format&fit=crop&q=80",
+      "niche": "Tech & AI",
+      "status": "active",
+      "totalBudget": 12500,
+      "allocatedBudget": 7800,
+      "creatorsTargetCount": 6,
+      "creatorsHiredCount": 4,
+      "deliverablesSummary": "YouTube 60s integrations + TikTok product walk-throughs",
+      "deadline": "2026-09-30",
+      "targetPlatforms": [
+        "youtube",
+        "tiktok",
+        "twitter"
+      ],
+      "metrics": {
+        "totalViews": 485000,
+        "totalClicks": 28400,
+        "conversions": 1820,
+        "roas": 3.8
+      }
+    }
+  ],
+  "deals": [
+    {
+      "id": "deal-1786880247060",
+      "campaignTitle": "Direct Creator Booking",
+      "brandName": "Acme Growth Labs",
+      "brandLogo": "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=120&auto=format&fit=crop&q=80",
+      "creatorId": "c-2",
+      "creatorName": "Marcus Vance",
+      "creatorHandle": "@marcusfitness",
+      "creatorAvatar": "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=400&auto=format&fit=crop&q=80",
+      "platform": "instagram",
+      "packageTitle": "Instagram Reel + 3x Story Sequence",
+      "amount": 1200,
+      "escrowStatus": "escrow_locked",
+      "stage": "accepted",
+      "deliverables": [
+        "1x 4K Instagram Reel",
+        "3x Story frames with sticker link"
+      ],
+      "briefNotes": "Hi Marcus Vance, we would love to collaborate on our upcoming product launch. Standard deliverables and usage rights apply.",
+      "createdAt": "2026-08-16",
+      "deadline": "2026-08-26"
+    },
+    {
+      "id": "deal-101",
+      "campaignId": "camp-1",
+      "campaignTitle": "SaaS Productivity Launch Q3",
+      "brandName": "TaskFlow AI",
+      "brandLogo": "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=120&auto=format&fit=crop&q=80",
+      "creatorId": "c-1",
+      "creatorName": "Elena Rostova",
+      "creatorHandle": "@elenatech",
+      "creatorAvatar": "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400&auto=format&fit=crop&q=80",
+      "platform": "youtube",
+      "packageTitle": "Dedicated YouTube Integration (60-90s)",
+      "amount": 1600,
+      "escrowStatus": "draft_submitted",
+      "stage": "draft_review",
+      "deliverables": [
+        "60-90s mid-roll product demonstration",
+        "Pinned comment with discount tracking link"
+      ],
+      "briefNotes": "Focus on the real-time AI meeting transcription and task automation.",
+      "draftNotes": "Draft is ready! The mid-roll starts at 04:15 with custom motion graphics.",
+      "draftMediaUrl": "https://loom.com/share/preview-taskflow-elena-v1",
+      "createdAt": "2026-08-10",
+      "deadline": "2026-08-20"
+    },
+    {
+      "id": "deal-999",
+      "campaignTitle": "AI Noise Canceling Earbuds Promotion",
+      "brandName": "SonicPeak Labs",
+      "brandLogo": "https://images.unsplash.com/photo-1590658268037-6bf12165a8df?w=120&auto=format&fit=crop&q=80",
+      "creatorId": "c-2",
+      "creatorName": "Marcus Vance",
+      "creatorHandle": "@marcusfitness",
+      "creatorAvatar": "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=400&auto=format&fit=crop&q=80",
+      "platform": "instagram",
+      "packageTitle": "Instagram Reel + 3x Story Sequence",
+      "amount": 1200,
+      "escrowStatus": "disputed",
+      "stage": "draft_review",
+      "deliverables": [
+        "1x Reel showing outdoor gym training",
+        "3x Stories"
+      ],
+      "briefNotes": "Showcase noise canceling during heavy gym session.",
+      "disputeReason": "Brand claims the outdoor audio did not follow the script guidelines; Creator argues deliverable met all agreed requirements.",
+      "disputeOpenedAt": "2026-08-15 11:20:00",
+      "createdAt": "2026-08-05",
+      "deadline": "2026-08-15"
+    }
+  ]
+}
