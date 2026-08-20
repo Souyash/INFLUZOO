@@ -74,6 +74,11 @@ export interface Creator {
   }[];
   packages: CreatorPackage[];
   featured?: boolean;
+  kycPhoto?: string;
+  kycSubmittedAt?: string;
+  kycReviewedAt?: string;
+  kycRejectionReason?: string;
+  createdAt?: string;
 }
 
 export type EscrowStatus = 

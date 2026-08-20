@@ -69,6 +69,10 @@ sqlite.exec(`
     sample_work_json TEXT NOT NULL,
     packages_json TEXT NOT NULL,
     featured INTEGER DEFAULT 0,
+    kyc_photo TEXT,
+    kyc_submitted_at TEXT,
+    kyc_reviewed_at TEXT,
+    kyc_rejection_reason TEXT,
     created_at TEXT NOT NULL
   );
 
@@ -142,6 +146,20 @@ sqlite.exec(`
   );
 `);
 
+// Ensure migration for existing tables if columns are missing
+try {
+  sqlite.exec(`ALTER TABLE creators ADD COLUMN kyc_photo TEXT;`);
+} catch {}
+try {
+  sqlite.exec(`ALTER TABLE creators ADD COLUMN kyc_submitted_at TEXT;`);
+} catch {}
+try {
+  sqlite.exec(`ALTER TABLE creators ADD COLUMN kyc_reviewed_at TEXT;`);
+} catch {}
+try {
+  sqlite.exec(`ALTER TABLE creators ADD COLUMN kyc_rejection_reason TEXT;`);
+} catch {}
+
 console.log(`[SQLITE] Influzo SQLite Database initialized at: ${DB_PATH}`);
 
 // Helper to safely parse JSON
@@ -181,6 +199,10 @@ function rowToCreator(row: any): Creator {
     sampleWork: safeJsonParse(row.sample_work_json, []),
     packages: safeJsonParse(row.packages_json, []),
     featured: Boolean(row.featured),
+    kycPhoto: row.kyc_photo || undefined,
+    kycSubmittedAt: row.kyc_submitted_at || undefined,
+    kycReviewedAt: row.kyc_reviewed_at || undefined,
+    kycRejectionReason: row.kyc_rejection_reason || undefined,
     createdAt: row.created_at,
   };
 }
@@ -279,8 +301,8 @@ function seedDatabaseIfEmpty() {
       verification_status, authenticity_score, rating, review_count, niches,
       primary_platform, followers_count, avg_engagement_rate, avg_views_per_post,
       price_range, platforms_json, audience_demographics_json, stats_json,
-      sample_work_json, packages_json, featured, created_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      sample_work_json, packages_json, featured, kyc_photo, kyc_submitted_at, created_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
 
   insertCreator.run(
@@ -333,6 +355,8 @@ function seedDatabaseIfEmpty() {
       { id: 'pkg-2', title: 'Full Dedicated Video Review (8-10 min)', description: 'Complete deep dive video dedicated 100% to your tool/product.', price: 3200, deliverables: ['8-10min Dedicated Video', 'SEO Tag Optimization', 'Permanent Pinned Link'], turnaroundDays: 8 }
     ]),
     1,
+    'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400&auto=format&fit=crop&q=80',
+    '2026-08-05 10:30:00',
     '2026-08-05'
   );
 
@@ -370,6 +394,8 @@ function seedDatabaseIfEmpty() {
       { id: 'pkg-4', title: 'Instagram Reel + 3x Story Sequence', description: '1 high-energy Reel showcasing product in workout routine + 3 swipe-up Stories with promo code.', price: 1200, deliverables: ['1x 4K Instagram Reel', '3x Story frames with sticker link'], turnaroundDays: 4, popular: true }
     ]),
     0,
+    'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=400&auto=format&fit=crop&q=80',
+    '2026-08-06 14:15:00',
     '2026-08-06'
   );
 
@@ -407,6 +433,8 @@ function seedDatabaseIfEmpty() {
       { id: 'pkg-99', title: 'TikTok Tech Showcase', description: '1x aesthetic vertical video showing wearable device in outfit transition.', price: 550, deliverables: ['1x TikTok Video', 'Link in Bio for 7 days'], turnaroundDays: 3 }
     ]),
     0,
+    'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=400&auto=format&fit=crop&q=80',
+    '2026-08-07 09:20:00',
     '2026-08-07'
   );
 
@@ -511,25 +539,8 @@ function seedDatabaseIfEmpty() {
     VALUES (?, ?, ?, ?, ?, ?, ?)
   `);
 
-  insertAudit.run(
-    'log-1',
-    'ESCROW_DEPOSIT_LOCKED',
-    'escrow',
-    'deal-101',
-    'TaskFlow AI locked $1,600 into Smart Escrow for Elena Rostova.',
-    'Brand: TaskFlow AI',
-    '2026-08-10 14:22:05'
-  );
-
-  insertAudit.run(
-    'log-2',
-    'CREATOR_VERIFIED',
-    'creator',
-    'c-1',
-    'Super Admin verified Elena Rostova (@elenatech) with 98.8% authenticity score.',
-    'Super Admin: Alex Rivera',
-    '2026-08-11 09:15:30'
-  );
+  insertAudit.run('log-1', 'ESCROW_DEPOSIT_LOCKED', 'escrow', 'deal-101', 'TaskFlow AI locked $1,600 into Smart Escrow for Elena Rostova.', 'Brand: TaskFlow AI', '2026-08-10 14:22:05');
+  insertAudit.run('log-2', 'CREATOR_VERIFIED', 'creator', 'c-1', 'Super Admin verified Elena Rostova (@elenatech) with 98.8% authenticity score.', 'Super Admin: Alex Rivera', '2026-08-11 09:15:30');
 
   // 6. Seed Config
   const insertConfig = sqlite.prepare(`INSERT OR REPLACE INTO platform_config (key, value) VALUES (?, ?)`);
@@ -602,7 +613,7 @@ export const db = {
 
   // --- OTP CODES ---
   setOTP(emailOrPhone: string, code: string, role: UserRole): void {
-    const expiresAt = Date.now() + 5 * 60 * 1000; // 5 minutes
+    const expiresAt = Date.now() + 5 * 60 * 1000;
     sqlite.prepare(`
       INSERT OR REPLACE INTO otp_codes (email_or_phone, code, role, expires_at)
       VALUES (?, ?, ?, ?)
@@ -616,7 +627,6 @@ export const db = {
 
     if (!row) return { valid: false };
 
-    // Clean up consumed OTP
     sqlite.prepare('DELETE FROM otp_codes WHERE LOWER(email_or_phone) = LOWER(?)').run(emailOrPhone.trim());
     return { valid: true, role: row.role as UserRole };
   },
@@ -646,7 +656,7 @@ export const db = {
       bindings.push(`%${params.q}%`, `%${params.q}%`, `%${params.q}%`);
     }
 
-    query += ' ORDER BY verified DESC, rating DESC';
+    query += ' ORDER BY verified DESC, created_at DESC';
 
     const rows = sqlite.prepare(query).all(...bindings);
     return rows.map(rowToCreator);
@@ -669,8 +679,9 @@ export const db = {
         verification_status, authenticity_score, rating, review_count, niches,
         primary_platform, followers_count, avg_engagement_rate, avg_views_per_post,
         price_range, platforms_json, audience_demographics_json, stats_json,
-        sample_work_json, packages_json, featured, created_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        sample_work_json, packages_json, featured, kyc_photo, kyc_submitted_at,
+        kyc_reviewed_at, kyc_rejection_reason, created_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       creator.id,
       creator.userId || null,
@@ -697,6 +708,10 @@ export const db = {
       JSON.stringify(creator.sampleWork),
       JSON.stringify(creator.packages),
       creator.featured ? 1 : 0,
+      creator.kycPhoto || null,
+      creator.kycSubmittedAt || new Date().toISOString().replace('T', ' ').slice(0, 19),
+      creator.kycReviewedAt || null,
+      creator.kycRejectionReason || null,
       creator.createdAt || new Date().toISOString().split('T')[0]
     );
 
@@ -715,7 +730,8 @@ export const db = {
         verified = ?, verification_status = ?, authenticity_score = ?, niches = ?,
         primary_platform = ?, followers_count = ?, avg_engagement_rate = ?,
         avg_views_per_post = ?, price_range = ?, platforms_json = ?,
-        audience_demographics_json = ?, packages_json = ?
+        audience_demographics_json = ?, packages_json = ?, kyc_photo = ?,
+        kyc_reviewed_at = ?, kyc_rejection_reason = ?
       WHERE id = ?
     `).run(
       merged.name,
@@ -736,6 +752,9 @@ export const db = {
       JSON.stringify(merged.platforms),
       JSON.stringify(merged.audienceDemographics),
       JSON.stringify(merged.packages),
+      merged.kycPhoto || null,
+      merged.kycReviewedAt || null,
+      merged.kycRejectionReason || null,
       id
     );
 

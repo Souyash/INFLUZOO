@@ -41,8 +41,24 @@ interface AppContextType {
   setBrandOnboardingOpen: (open: boolean) => void;
   adminLoginModalOpen: boolean;
   setAdminLoginModalOpen: (open: boolean) => void;
+  creatorSurveyModalOpen: boolean;
+  setCreatorSurveyModalOpen: (open: boolean) => void;
 
   signupWithPassword: (name: string, email: string, password: string, role: UserRole) => Promise<{ success: boolean; message?: string }>;
+  signupCreatorWithSurvey: (data: {
+    name: string;
+    email: string;
+    password: string;
+    handle: string;
+    location: string;
+    bio: string;
+    niches: string[];
+    primaryPlatform: string;
+    followersCount: number;
+    avgEngagementRate: number;
+    basePrice: number;
+    kycPhoto: string;
+  }) => Promise<{ success: boolean; message?: string }>;
   loginWithPassword: (email: string, password: string) => Promise<{ success: boolean; message?: string }>;
   requestOtp: (emailOrPhone: string, role: UserRole) => Promise<{ success: boolean; message: string; debugCode?: string }>;
   loginWithOtp: (emailOrPhone: string, code: string) => Promise<boolean>;
@@ -107,6 +123,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [creatorOnboardingOpen, setCreatorOnboardingOpen] = useState(false);
   const [brandOnboardingOpen, setBrandOnboardingOpen] = useState(false);
   const [adminLoginModalOpen, setAdminLoginModalOpen] = useState(false);
+  const [creatorSurveyModalOpen, setCreatorSurveyModalOpen] = useState(false);
 
   const [creators, setCreators] = useState<Creator[]>(MOCK_CREATORS);
   const [campaigns, setCampaigns] = useState<Campaign[]>(MOCK_CAMPAIGNS);
@@ -217,6 +234,38 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
       confetti({ particleCount: 90, spread: 60, origin: { y: 0.6 } });
       showToast(`Welcome to Influzo, ${user.name}! Account created & stored in SQLite. 🎉`, 'success');
+      return { success: true };
+    }
+    return { success: false, message: res.message || 'Signup failed' };
+  };
+
+  const signupCreatorWithSurvey = async (data: {
+    name: string;
+    email: string;
+    password: string;
+    handle: string;
+    location: string;
+    bio: string;
+    niches: string[];
+    primaryPlatform: string;
+    followersCount: number;
+    avgEngagementRate: number;
+    basePrice: number;
+    kycPhoto: string;
+  }) => {
+    const res = await api.signupCreatorWithSurvey(data);
+    if (res.success && res.data?.user) {
+      const user = res.data.user as User;
+      setCurrentUser(user);
+      if (res.data?.creator) {
+        setCurrentCreator(res.data.creator);
+        setCreators(prev => [res.data.creator, ...prev]);
+      }
+      setPerspective('creator');
+      setCreatorTab('overview');
+
+      confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 } });
+      showToast('Creator account & Live Photo KYC submitted! Under review by Admin. 🎉', 'success');
       return { success: true };
     }
     return { success: false, message: res.message || 'Signup failed' };
@@ -494,7 +543,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setBrandOnboardingOpen,
         adminLoginModalOpen,
         setAdminLoginModalOpen,
+        creatorSurveyModalOpen,
+        setCreatorSurveyModalOpen,
         signupWithPassword,
+        signupCreatorWithSurvey,
         loginWithPassword,
         requestOtp,
         loginWithOtp,

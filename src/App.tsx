@@ -30,12 +30,20 @@ import { AuditLogs } from './components/admin/AuditLogs';
 import { AiAssistantModal } from './components/common/AiAssistantModal';
 import { Toast } from './components/common/Toast';
 import { AuthModal } from './components/auth/AuthModal';
+import { CreatorSignupSurveyModal } from './components/auth/CreatorSignupSurveyModal';
 import { CreatorOnboarding } from './components/auth/CreatorOnboarding';
 import { BrandOnboarding } from './components/auth/BrandOnboarding';
 import { AdminLoginModal } from './components/auth/AdminLoginModal';
 
 const MainContent: React.FC = () => {
-  const { perspective, brandTab, creatorTab, adminTab } = useApp();
+  const { 
+    perspective, 
+    brandTab, 
+    creatorTab, 
+    adminTab,
+    creatorSurveyModalOpen,
+    setCreatorSurveyModalOpen
+  } = useApp();
 
   return (
     <main className="min-h-[calc(100vh-4rem)]">
@@ -83,6 +91,10 @@ const MainContent: React.FC = () => {
       <CreatorModal />
       <AiAssistantModal />
       <AuthModal />
+      <CreatorSignupSurveyModal 
+        isOpen={creatorSurveyModalOpen} 
+        onClose={() => setCreatorSurveyModalOpen(false)} 
+      />
       <CreatorOnboarding />
       <BrandOnboarding />
       <AdminLoginModal />

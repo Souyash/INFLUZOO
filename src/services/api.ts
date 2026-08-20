@@ -27,6 +27,32 @@ export const api = {
     return json;
   },
 
+  async signupCreatorWithSurvey(data: {
+    name: string;
+    email: string;
+    password: string;
+    handle: string;
+    location: string;
+    bio: string;
+    niches: string[];
+    primaryPlatform: string;
+    followersCount: number;
+    avgEngagementRate: number;
+    basePrice: number;
+    kycPhoto: string;
+  }) {
+    const res = await fetch(`${API_BASE}/auth/creator-signup-survey`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+    const json = await res.json();
+    if (json.success && json.data?.token) {
+      localStorage.setItem('influzo_session_token', json.data.token);
+    }
+    return json;
+  },
+
   async login(data: { email: string; password: string }) {
     const res = await fetch(`${API_BASE}/auth/login`, {
       method: 'POST',

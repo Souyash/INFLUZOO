@@ -26,27 +26,31 @@ adminRouter.get('/overview', (_req: Request, res: Response) => {
   });
 });
 
-// POST /api/admin/verify-creator
+// POST /api/admin/verify-creator (Approve or Reject Creator KYC)
 adminRouter.post('/verify-creator', (req: Request, res: Response) => {
   const { creatorId, approve, reason } = req.body;
   const updated = db.updateCreator(creatorId, {
     verified: approve,
     verificationStatus: approve ? 'verified' : 'rejected',
+    kycReviewedAt: new Date().toISOString().replace('T', ' ').slice(0, 19),
+    kycRejectionReason: approve ? null : (reason || 'Live photo / profile information does not meet verification requirements.'),
   });
 
   if (!updated) return res.status(404).json({ success: false, message: 'Creator not found' });
 
   db.addAuditLog(
-    approve ? 'CREATOR_VERIFICATION_APPROVED' : 'CREATOR_VERIFICATION_REJECTED',
+    approve ? 'CREATOR_KYC_APPROVED' : 'CREATOR_KYC_REJECTED',
     'creator',
     creatorId,
-    `Admin ${approve ? 'approved' : 'rejected'} verification for ${updated.name} (${updated.handle}). Reason: ${reason || 'Criteria met'}`,
+    `Admin ${approve ? 'APPROVED' : 'REJECTED'} verification for ${updated.name} (${updated.handle}). ${reason ? `Reason: ${reason}` : ''}`,
     'Super Admin'
   );
 
+  console.log(`[ADMIN] Creator verification decision for ${updated.name} (${updated.handle}): ${approve ? 'APPROVED' : 'REJECTED'}`);
+
   res.json({
     success: true,
-    message: approve ? 'Creator verified successfully.' : 'Creator verification application rejected.',
+    message: approve ? 'Creator KYC approved! Verified badge granted.' : 'Creator KYC application rejected.',
     data: updated,
   });
 });

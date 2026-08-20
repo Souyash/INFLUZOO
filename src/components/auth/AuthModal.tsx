@@ -25,6 +25,7 @@ export const AuthModal: React.FC = () => {
     authModalInitialRole, 
     loginWithPassword,
     signupWithPassword,
+    setCreatorSurveyModalOpen,
     loginWithOtp,
     requestOtp,
     showToast
@@ -98,6 +99,13 @@ export const AuthModal: React.FC = () => {
       if (password.length < 6) {
         setError('Password must be at least 6 characters.');
         setIsLoading(false);
+        return;
+      }
+
+      if (selectedRole === 'creator') {
+        setIsLoading(false);
+        handleClose();
+        setCreatorSurveyModalOpen(true);
         return;
       }
 

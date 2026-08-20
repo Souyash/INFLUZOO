@@ -17,7 +17,10 @@ import {
 import { Badge } from '../common/Badge';
 
 export const CreatorDashboard: React.FC = () => {
-  const { currentCreator, wallet, deals, setCreatorTab } = useApp();
+  const { currentCreator, wallet, deals, setCreatorTab, updateCreatorProfile } = useApp();
+
+  const isPending = !currentCreator.verified || currentCreator.verificationStatus === 'pending';
+  const isRejected = currentCreator.verificationStatus === 'rejected';
 
   const activeCreatorDeals = deals.filter(d => d.creatorId === currentCreator.id || d.creatorHandle === currentCreator.handle);
   const pendingActionDeals = activeCreatorDeals.filter(d => d.stage === 'accepted' || d.stage === 'offer_sent');
@@ -25,6 +28,46 @@ export const CreatorDashboard: React.FC = () => {
   return (
     <div className="space-y-6">
       
+      {/* Dynamic KYC Verification Alert Banner */}
+      {isPending && (
+        <div className="p-4 rounded-2xl bg-amber-950/40 border border-amber-500/50 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-amber-200 text-xs animate-in fade-in shadow-lg shadow-amber-950/20">
+          <div className="flex items-center gap-3">
+            <div className="p-2 rounded-xl bg-amber-500/20 text-amber-400 shrink-0">
+              <Clock className="w-5 h-5 animate-spin-slow" />
+            </div>
+            <div>
+              <p className="font-bold text-white text-sm">KYC Verification Under Review by Admin</p>
+              <p className="text-amber-300/80 text-[11px] mt-0.5">
+                Your live selfie photo and profile survey have been submitted. An admin is vetting your account to grant the Verified Badge.
+              </p>
+            </div>
+          </div>
+          <Badge variant="amber" size="sm">Review Pending</Badge>
+        </div>
+      )}
+
+      {isRejected && (
+        <div className="p-4 rounded-2xl bg-rose-950/40 border border-rose-500/50 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-rose-200 text-xs animate-in fade-in shadow-lg shadow-rose-950/20">
+          <div className="flex items-center gap-3">
+            <div className="p-2 rounded-xl bg-rose-500/20 text-rose-400 shrink-0">
+              <Clock className="w-5 h-5" />
+            </div>
+            <div>
+              <p className="font-bold text-white text-sm">KYC Verification Needs Attention</p>
+              <p className="text-rose-300/80 text-[11px] mt-0.5">
+                Feedback: {currentCreator.kycRejectionReason || 'Please update your media kit or submit a clearer live selfie.'}
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={() => setCreatorTab('mediakit')}
+            className="px-3.5 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs shrink-0 transition"
+          >
+            Update Profile
+          </button>
+        </div>
+      )}
+
       {/* Welcome Banner */}
       <div className="p-6 rounded-3xl bg-gradient-to-r from-violet-950/60 via-[#12131c] to-slate-900 border border-violet-500/30 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-xl">
         <div className="flex items-center gap-4">
@@ -36,7 +79,9 @@ export const CreatorDashboard: React.FC = () => {
           <div>
             <div className="flex items-center gap-2">
               <h2 className="text-xl font-extrabold text-white">Welcome back, {currentCreator.name}!</h2>
-              <Badge variant="purple">Verified Creator Pro</Badge>
+              <Badge variant={currentCreator.verified ? 'emerald' : 'amber'}>
+                {currentCreator.verified ? 'Verified Creator Pro' : 'KYC Under Review'}
+              </Badge>
             </div>
             <p className="text-xs text-slate-300 mt-0.5">
               {currentCreator.handle} • {currentCreator.niches.join(', ')} • {currentCreator.stats.completedCollabs} Completed Collabs

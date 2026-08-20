@@ -74,6 +74,11 @@ export interface Creator {
   }[];
   packages: CreatorPackage[];
   featured?: boolean;
+  // KYC & Survey Data
+  kycPhoto?: string;
+  kycSubmittedAt?: string;
+  kycReviewedAt?: string;
+  kycRejectionReason?: string;
   createdAt?: string;
 }
 
