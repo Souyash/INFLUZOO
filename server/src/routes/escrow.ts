@@ -22,32 +22,87 @@ escrowRouter.get('/summary', (_req: Request, res: Response) => {
 // POST /api/escrow/deposit
 escrowRouter.post('/deposit', (req: Request, res: Response) => {
   const { dealId } = req.body;
+  const deal = db.getDealById(dealId);
+  if (!deal) return res.status(404).json({ success: false, message: 'Deal not found' });
+
+  const config = db.getConfig();
+  const grossAmount = deal.amount;
+  const platformFee = Math.round(grossAmount * (config.platformTakeRatePercent / 100));
+  const netAmount = grossAmount - platformFee;
+
   const updated = db.updateDeal(dealId, {
     escrowStatus: 'escrow_locked',
     stage: 'accepted',
   });
 
-  if (!updated) return res.status(404).json({ success: false, message: 'Deal not found' });
+  // Record transaction in SQLite ledger
+  const tx = db.createTransaction({
+    dealId,
+    type: 'deposit',
+    amount: grossAmount,
+    platformFee,
+    netAmount,
+    currency: 'USD',
+    paymentMethod: 'stripe_card',
+    status: 'succeeded',
+    payerName: deal.brandName,
+    recipientName: `${deal.creatorName} (Smart Escrow Vault)`,
+  });
 
-  db.addAuditLog('ESCROW_MANUAL_DEPOSIT', 'escrow', dealId, `Brand deposited $${updated.amount.toLocaleString()} into Escrow for ${updated.creatorName}.`, updated.brandName);
+  db.addAuditLog('ESCROW_MANUAL_DEPOSIT', 'escrow', dealId, `Brand deposited $${updated!.amount.toLocaleString()} into Escrow for ${updated!.creatorName}.`, updated!.brandName);
 
-  res.json({ success: true, message: 'Escrow locked successfully.', data: updated });
+  res.json({ success: true, message: 'Escrow locked successfully.', data: { deal: updated, transaction: tx } });
 });
 
-// POST /api/escrow/release
+// POST /api/escrow/release (Auto-Release to Creator Wallet)
 escrowRouter.post('/release', (req: Request, res: Response) => {
   const { dealId } = req.body;
+  const deal = db.getDealById(dealId);
+  if (!deal) return res.status(404).json({ success: false, message: 'Deal not found' });
+
+  const config = db.getConfig();
+  const grossAmount = deal.amount;
+  const platformFee = Math.round(grossAmount * (config.platformTakeRatePercent / 100));
+  const netAmount = grossAmount - platformFee;
+
   const updated = db.updateDeal(dealId, {
     escrowStatus: 'released',
     stage: 'completed',
     completedAt: new Date().toISOString().split('T')[0],
   });
 
-  if (!updated) return res.status(404).json({ success: false, message: 'Deal not found' });
+  // Record release entry in SQLite transaction ledger
+  const tx = db.createTransaction({
+    dealId,
+    type: 'release',
+    amount: grossAmount,
+    platformFee,
+    netAmount,
+    currency: 'USD',
+    paymentMethod: 'escrow_wallet',
+    status: 'succeeded',
+    payerName: `${deal.brandName} (Escrow Custody)`,
+    recipientName: deal.creatorName,
+  });
 
-  db.addAuditLog('ESCROW_RELEASED', 'escrow', dealId, `Brand approved deliverables. $${updated.amount.toLocaleString()} released to ${updated.creatorName}.`, updated.brandName);
+  db.addAuditLog(
+    'ESCROW_RELEASED',
+    'escrow',
+    dealId,
+    `Brand approved deliverables. $${grossAmount.toLocaleString()} released from Escrow: $${netAmount.toLocaleString()} credited to ${deal.creatorName}'s Wallet, $${platformFee.toLocaleString()} retained as Platform Revenue.`,
+    deal.brandName
+  );
 
-  res.json({ success: true, message: 'Escrow released successfully to creator wallet.', data: updated });
+  console.log(`[ESCROW] Released Deal #${dealId}: Gross $${grossAmount} | Net Creator: $${netAmount} | Fee: $${platformFee}`);
+
+  res.json({
+    success: true,
+    message: `Escrow released! $${netAmount.toLocaleString()} credited to creator wallet.`,
+    data: {
+      deal: updated,
+      transaction: tx,
+    }
+  });
 });
 
 // POST /api/escrow/dispute

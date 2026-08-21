@@ -1,4 +1,16 @@
-import { Creator, Campaign, Deal, AuditLog, PlatformConfig, AdminMetrics, User, UserRole } from '../types';
+import { 
+  Creator, 
+  Campaign, 
+  Deal, 
+  AuditLog, 
+  PlatformConfig, 
+  AdminMetrics, 
+  User, 
+  UserRole,
+  Transaction,
+  PayoutAccount,
+  PaymentMethodType
+} from '../types';
 
 const API_BASE = import.meta.env.VITE_API_URL 
   ? `${import.meta.env.VITE_API_URL.replace(/\/$/, '')}/api` 
@@ -365,6 +377,105 @@ export const api = {
       return json.success ? (json.data as PlatformConfig) : null;
     } catch {
       return null;
+    }
+  },
+
+  // --- PAYMENTS & FINANCIAL LEDGER ---
+  async createPaymentIntent(dealId: string, amount?: number) {
+    try {
+      const res = await fetch(`${API_BASE}/payments/create-intent`, {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({ dealId, amount }),
+      });
+      const json = await res.json();
+      return json.success ? json.data : null;
+    } catch {
+      return null;
+    }
+  },
+
+  async confirmPaymentDeposit(data: {
+    dealId: string;
+    paymentMethod: PaymentMethodType;
+    payerName?: string;
+    cardLast4?: string;
+  }): Promise<{ success: boolean; message: string; data?: { deal: Deal; transaction: Transaction } }> {
+    try {
+      const res = await fetch(`${API_BASE}/payments/confirm-deposit`, {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify(data),
+      });
+      return await res.json();
+    } catch {
+      return { success: false, message: 'Network error processing payment.' };
+    }
+  },
+
+  async withdrawFunds(data: {
+    creatorId: string;
+    amount: number;
+    payoutAccountId?: string;
+  }): Promise<{ success: boolean; message: string; data?: { transaction: Transaction } }> {
+    try {
+      const res = await fetch(`${API_BASE}/payments/withdraw`, {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify(data),
+      });
+      return await res.json();
+    } catch {
+      return { success: false, message: 'Network error executing withdrawal.' };
+    }
+  },
+
+  async getTransactions(filters?: { dealId?: string; type?: string }): Promise<Transaction[]> {
+    try {
+      let url = `${API_BASE}/payments/transactions`;
+      const params = new URLSearchParams();
+      if (filters?.dealId) params.append('dealId', filters.dealId);
+      if (filters?.type) params.append('type', filters.type);
+      if (params.toString()) url += `?${params.toString()}`;
+
+      const res = await fetch(url, {
+        headers: getAuthHeaders(),
+      });
+      const json = await res.json();
+      return json.success ? (json.data as Transaction[]) : [];
+    } catch {
+      return [];
+    }
+  },
+
+  async getPayoutMethods(creatorId: string): Promise<PayoutAccount[]> {
+    try {
+      const res = await fetch(`${API_BASE}/payments/payout-methods?creatorId=${encodeURIComponent(creatorId)}`, {
+        headers: getAuthHeaders(),
+      });
+      const json = await res.json();
+      return json.success ? (json.data as PayoutAccount[]) : [];
+    } catch {
+      return [];
+    }
+  },
+
+  async addPayoutMethod(data: {
+    creatorId: string;
+    bankName: string;
+    accountNumber: string;
+    routingNumber: string;
+    accountHolderName: string;
+  }): Promise<{ success: boolean; message: string; data?: PayoutAccount }> {
+    try {
+      const res = await fetch(`${API_BASE}/payments/payout-methods`, {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify(data),
+      });
+      return await res.json();
+    } catch {
+      return { success: false, message: 'Failed to link payout account.' };
     }
   },
 

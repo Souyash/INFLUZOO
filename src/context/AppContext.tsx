@@ -12,10 +12,11 @@ import {
   DealStage, 
   AuditLog,
   PlatformConfig,
-  User,
-  UserRole
+  User, 
+  UserRole,
+  PaymentMethodType,
+  Transaction
 } from '../types';
-import { MOCK_CREATORS, MOCK_CAMPAIGNS, MOCK_DEALS, MOCK_NOTIFICATIONS } from '../data/mockData';
 import { api } from '../services/api';
 import confetti from 'canvas-confetti';
 
@@ -43,6 +44,12 @@ interface AppContextType {
   setAdminLoginModalOpen: (open: boolean) => void;
   creatorSurveyModalOpen: boolean;
   setCreatorSurveyModalOpen: (open: boolean) => void;
+
+  // Payment Gateway Modal
+  paymentModalOpen: boolean;
+  setPaymentModalOpen: (open: boolean) => void;
+  selectedDealForPayment: Deal | null;
+  setSelectedDealForPayment: (deal: Deal | null) => void;
 
   signupWithPassword: (name: string, email: string, password: string, role: UserRole) => Promise<{ success: boolean; message?: string }>;
   signupCreatorWithSurvey: (data: {
@@ -88,15 +95,21 @@ interface AppContextType {
   
   currentCreator: Creator;
   
-  // Core Actions
+  // Core Deal & Payment Actions
   createCampaign: (campaign: Omit<Campaign, 'id' | 'metrics' | 'allocatedBudget' | 'creatorsHiredCount'>) => Promise<void>;
   sendDealOffer: (creator: Creator, packageId: string, briefNotes: string, customAmount?: number) => Promise<void>;
   depositEscrow: (dealId: string) => Promise<void>;
+  confirmEscrowDeposit: (data: {
+    dealId: string;
+    paymentMethod: PaymentMethodType;
+    payerName?: string;
+    cardLast4?: string;
+  }) => Promise<{ success: boolean; message?: string; transactionId?: string }>;
   submitDraft: (dealId: string, notes: string, mediaUrl: string) => Promise<void>;
   approveDraftAndReleaseEscrow: (dealId: string) => Promise<void>;
   requestRevision: (dealId: string, feedback: string) => void;
   submitLivePostUrl: (dealId: string, liveUrl: string) => Promise<void>;
-  withdrawFunds: (amount: number) => boolean;
+  withdrawFunds: (amount: number) => Promise<boolean>;
   updateCreatorProfile: (updated: Partial<Creator>) => Promise<void>;
   
   // Admin Actions
@@ -109,6 +122,41 @@ interface AppContextType {
 }
 
 export const AppContext = createContext<AppContextType | undefined>(undefined);
+
+// Initial fallback creator
+const FALLBACK_CREATOR: Creator = {
+  id: 'c-1',
+  name: 'Elena Rostova',
+  handle: '@elenatech',
+  avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400&auto=format&fit=crop&q=80',
+  coverImage: 'https://images.unsplash.com/photo-1518770660439-4636190af475?w=1200&auto=format&fit=crop&q=80',
+  bio: 'AI product reviewer & UI/UX tech geek.',
+  location: 'San Francisco, CA',
+  verified: true,
+  verificationStatus: 'verified',
+  authenticityScore: 98.8,
+  rating: 4.98,
+  reviewCount: 42,
+  niches: ['Tech & AI', 'Lifestyle & Travel'],
+  primaryPlatform: 'youtube',
+  followersCount: 385000,
+  avgEngagementRate: 6.4,
+  avgViewsPerPost: 64200,
+  priceRange: '$800 - $3,200',
+  platforms: [
+    { platform: 'youtube', handle: 'ElenaTechReviews', followers: 280000, engagementRate: 7.1, avgViews: 85000, profileUrl: '#' }
+  ],
+  audienceDemographics: {
+    topCountries: [{ name: 'United States', percentage: 55 }],
+    ageGroups: [{ label: '18-24', percentage: 40 }, { label: '25-34', percentage: 45 }],
+    genderSplit: { female: 50, male: 50, other: 0 }
+  },
+  stats: { completedCollabs: 54, onTimeRate: 100, responseHours: 2, repeatBrandRate: 88 },
+  sampleWork: [],
+  packages: [
+    { id: 'pkg-1', title: 'Dedicated YouTube Integration (60-90s)', description: 'Mid-roll sponsor integration with pinned comment link.', price: 1600, deliverables: ['60-90s Mid-Roll Integration', 'Pinned Link'], turnaroundDays: 5, popular: true }
+  ]
+};
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [perspective, setPerspective] = useState<AppPerspective>('landing');
@@ -125,10 +173,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [adminLoginModalOpen, setAdminLoginModalOpen] = useState(false);
   const [creatorSurveyModalOpen, setCreatorSurveyModalOpen] = useState(false);
 
-  const [creators, setCreators] = useState<Creator[]>(MOCK_CREATORS);
-  const [campaigns, setCampaigns] = useState<Campaign[]>(MOCK_CAMPAIGNS);
-  const [deals, setDeals] = useState<Deal[]>(MOCK_DEALS);
-  const [notifications, setNotifications] = useState<NotificationItem[]>(MOCK_NOTIFICATIONS);
+  // Payment Gateway Modal
+  const [paymentModalOpen, setPaymentModalOpen] = useState(false);
+  const [selectedDealForPayment, setSelectedDealForPayment] = useState<Deal | null>(null);
+
+  // Live Database entities
+  const [creators, setCreators] = useState<Creator[]>([FALLBACK_CREATOR]);
+  const [campaigns, setCampaigns] = useState<Campaign[]>([]);
+  const [deals, setDeals] = useState<Deal[]>([]);
+  const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
 
   const [platformConfig, setPlatformConfigState] = useState<PlatformConfig>({
@@ -143,13 +196,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [isAiModalOpen, setIsAiModalOpen] = useState<boolean>(false);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'info' | 'warning' } | null>(null);
 
-  const [currentCreator, setCurrentCreator] = useState<Creator>(MOCK_CREATORS[0]);
-
   const [wallet, setWallet] = useState({
-    available: 3450,
-    lockedEscrow: 4800,
-    totalEarned: 24800,
+    available: 2400,
+    lockedEscrow: 1600,
+    totalEarned: 28400,
   });
+
+  const [currentCreator, setCurrentCreator] = useState<Creator>(FALLBACK_CREATOR);
 
   const showToast = (message: string, type: 'success' | 'info' | 'warning' = 'success') => {
     setToast({ message, type });
@@ -309,22 +362,20 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       else if (user.role === 'creator') setPerspective('creator');
       else if (user.role === 'admin') setPerspective('admin');
 
-      showToast(`Welcome back, ${user.name}! Authenticated via OTP.`, 'success');
+      showToast(`Welcome, ${user.name}! OTP Verified.`, 'success');
       return true;
-    } else {
-      showToast(res.message || 'Invalid OTP code', 'warning');
-      return false;
     }
+    return false;
   };
 
   const loginAsAdmin = async (masterKey: string) => {
     const res = await api.adminLogin(masterKey);
     if (res.success && res.data?.user) {
-      const admin = res.data.user as User;
-      setCurrentUser(admin);
+      const user = res.data.user as User;
+      setCurrentUser(user);
       setPerspective('admin');
       setAdminTab('overview');
-      showToast('Super Admin Operator Authenticated! 🛡️', 'success');
+      showToast('Super Admin Authenticated. Master controls unlocked.', 'success');
       return true;
     }
     return false;
@@ -334,47 +385,51 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     await api.logout();
     setCurrentUser(null);
     setPerspective('landing');
-    showToast('Logged out successfully.', 'info');
+    showToast('Signed out successfully.', 'info');
   };
 
   const completeCreatorOnboarding = async (data: any) => {
-    if (currentUser) {
-      const updatedUser = { ...currentUser, onboarded: true, name: data.name };
-      setCurrentUser(updatedUser);
+    const updated = await api.updateCreatorProfile(currentCreator.id, {
+      ...data,
+      verificationStatus: 'pending',
+    });
+    if (updated) {
+      setCurrentCreator(updated);
+      setCreators(prev => prev.map(c => c.id === updated.id ? updated : c));
+      setCreatorOnboardingOpen(false);
+      showToast('Creator profile updated in SQLite! Under review.', 'success');
     }
-    setPerspective('creator');
-    setCreatorTab('overview');
-    confetti({ particleCount: 90, spread: 60, origin: { y: 0.6 } });
-    showToast('Creator profile activated! 🎉', 'success');
   };
 
-  const completeBrandOnboarding = async (data: any) => {
-    if (currentUser) {
-      const updatedUser = { ...currentUser, onboarded: true, name: data.companyName };
-      setCurrentUser(updatedUser);
-    }
+  const completeBrandOnboarding = async (_data: any) => {
+    setBrandOnboardingOpen(false);
     setPerspective('brand');
-    setBrandTab('discovery');
-    confetti({ particleCount: 90, spread: 60, origin: { y: 0.6 } });
-    showToast('Brand organization profile configured! 🚀', 'success');
+    showToast('Brand profile configured successfully!', 'success');
   };
 
-  // --- CORE ACTIONS WITH BACKEND PERSISTENCE ---
+  // --- CORE ACTIONS ---
   const createCampaign = async (campaignData: Omit<Campaign, 'id' | 'metrics' | 'allocatedBudget' | 'creatorsHiredCount'>) => {
-    const saved = await api.createCampaign(campaignData);
+    const newCamp: Campaign = {
+      ...campaignData,
+      id: `camp-${Date.now()}`,
+      allocatedBudget: 0,
+      creatorsHiredCount: 0,
+      metrics: { totalViews: 0, totalClicks: 0, conversions: 0, roas: 0 }
+    };
+    const saved = await api.createCampaign(newCamp);
     if (saved) {
       setCampaigns(prev => [saved, ...prev]);
-      showToast(`Campaign "${saved.title}" saved to SQLite database!`, 'success');
+      showToast(`Campaign "${saved.title}" created & saved to database!`, 'success');
     }
   };
 
   const sendDealOffer = async (creator: Creator, packageId: string, briefNotes: string, customAmount?: number) => {
-    const pkg = creator.packages.find(p => p.id === packageId) || creator.packages[0];
-    const amount = customAmount || pkg?.price || 1200;
-
+    const pkg = creator.packages.find(p => p.id === packageId);
+    const amount = customAmount || pkg?.price || 500;
+    
     const newDeal: Deal = {
       id: `deal-${Date.now()}`,
-      campaignTitle: 'Direct Creator Booking',
+      campaignTitle: 'Direct Brand Partnership',
       brandName: currentUser?.name || 'TaskFlow AI',
       brandLogo: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=120&auto=format&fit=crop&q=80',
       creatorId: creator.id,
@@ -384,8 +439,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       platform: creator.primaryPlatform,
       packageTitle: pkg?.title || 'Custom Campaign Package',
       amount,
-      escrowStatus: 'escrow_locked',
-      stage: 'accepted',
+      escrowStatus: 'pending_deposit',
+      stage: 'offer_sent',
       deliverables: pkg?.deliverables || ['1x Dedicated Post', 'Usage Rights'],
       briefNotes,
       createdAt: new Date().toISOString().split('T')[0],
@@ -395,59 +450,59 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const saved = await api.createDeal(newDeal);
     if (saved) {
       setDeals(prev => [saved, ...prev]);
-      const newNotif: NotificationItem = {
-        id: `notif-${Date.now()}`,
-        title: `Offer sent to ${creator.name}`,
-        message: `$${amount.toLocaleString()} locked in Escrow. Creator notified!`,
-        type: 'deal',
-        timestamp: 'Just now',
-        read: false,
-        dealId: saved.id,
-      };
-      setNotifications(prev => [newNotif, ...prev]);
-      showToast(`Deal sent to ${creator.name}! $${amount.toLocaleString()} locked into escrow.`, 'success');
+      setSelectedCreator(null);
+      // Automatically prompt payment gateway modal to fund escrow
+      setSelectedDealForPayment(saved);
+      setPaymentModalOpen(true);
     }
-    setSelectedCreator(null);
   };
 
   const depositEscrow = async (dealId: string) => {
-    const updated = await api.depositEscrow(dealId);
-    if (updated) {
-      setDeals(prev => prev.map(d => d.id === dealId ? updated : d));
-      showToast('Escrow funds securely locked! Creator notified to start production.', 'success');
+    const target = deals.find(d => d.id === dealId);
+    if (target) {
+      setSelectedDealForPayment(target);
+      setPaymentModalOpen(true);
     }
+  };
+
+  const confirmEscrowDeposit = async (data: {
+    dealId: string;
+    paymentMethod: PaymentMethodType;
+    payerName?: string;
+    cardLast4?: string;
+  }) => {
+    const res = await api.confirmPaymentDeposit(data);
+    if (res.success && res.data?.deal) {
+      const updated = res.data.deal;
+      setDeals(prev => prev.map(d => d.id === data.dealId ? updated : d));
+      
+      confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 } });
+      showToast(`Escrow funded! $${updated.amount.toLocaleString()} locked into Smart Escrow Vault. 🔒`, 'success');
+      return { success: true, transactionId: res.data.transaction?.id };
+    }
+    return { success: false, message: res.message };
   };
 
   const submitDraft = async (dealId: string, notes: string, mediaUrl: string) => {
     const updated = await api.submitDraft(dealId, notes, mediaUrl);
     if (updated) {
       setDeals(prev => prev.map(d => d.id === dealId ? updated : d));
-      const newNotif: NotificationItem = {
-        id: `notif-${Date.now()}`,
-        title: 'Draft Content Submitted',
-        message: `Content draft uploaded for review on deal #${dealId}.`,
-        type: 'review',
-        timestamp: 'Just now',
-        read: false,
-        dealId
-      };
-      setNotifications(prev => [newNotif, ...prev]);
-      showToast('Content draft submitted for Brand review & stored in DB!', 'success');
+      showToast('Content draft submitted for Brand review & stored in SQLite!', 'success');
     }
   };
 
   const approveDraftAndReleaseEscrow = async (dealId: string) => {
-    const updated = await api.releaseEscrow(dealId);
-    if (updated) {
-      setDeals(prev => prev.map(d => d.id === dealId ? updated : d));
+    const res = await api.releaseEscrow(dealId);
+    if (res) {
+      setDeals(prev => prev.map(d => d.id === dealId ? res : d));
       setWallet(prev => ({
-        available: prev.available + updated.amount,
-        lockedEscrow: Math.max(0, prev.lockedEscrow - updated.amount),
-        totalEarned: prev.totalEarned + updated.amount,
+        available: prev.available + res.amount,
+        lockedEscrow: Math.max(0, prev.lockedEscrow - res.amount),
+        totalEarned: prev.totalEarned + res.amount,
       }));
 
-      confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 } });
-      showToast(`Draft approved! $${updated.amount.toLocaleString()} released from Escrow! 🎉`, 'success');
+      confetti({ particleCount: 110, spread: 75, origin: { y: 0.6 } });
+      showToast(`Draft approved! $${res.amount.toLocaleString()} released to Creator Wallet! 🎉`, 'success');
     }
   };
 
@@ -459,24 +514,35 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const updated = await api.submitLivePost(dealId, liveUrl);
     if (updated) {
       setDeals(prev => prev.map(d => d.id === dealId ? updated : d));
-      confetti({ particleCount: 80, spread: 60, origin: { y: 0.7 } });
+      confetti({ particleCount: 90, spread: 65, origin: { y: 0.7 } });
       showToast('Live post verified! Automated Escrow released successfully! 🚀', 'success');
     }
   };
 
-  const withdrawFunds = (amount: number) => {
+  const withdrawFunds = async (amount: number) => {
     if (amount > wallet.available) {
       showToast('Insufficient available balance to withdraw', 'warning');
       return false;
     }
-    setWallet(prev => ({
-      ...prev,
-      available: prev.available - amount,
-    }));
 
-    confetti({ particleCount: 120, spread: 80, origin: { y: 0.5 } });
-    showToast(`Payout initiated! $${amount.toLocaleString()} sent via Stripe Instant Payout.`, 'success');
-    return true;
+    const res = await api.withdrawFunds({
+      creatorId: currentCreator.id,
+      amount,
+    });
+
+    if (res.success) {
+      setWallet(prev => ({
+        ...prev,
+        available: Math.max(0, prev.available - amount),
+      }));
+
+      confetti({ particleCount: 120, spread: 80, origin: { y: 0.5 } });
+      showToast(`Payout of $${amount.toLocaleString()} initiated to bank account!`, 'success');
+      return true;
+    } else {
+      showToast(res.message || 'Withdrawal failed.', 'warning');
+      return false;
+    }
   };
 
   const updateCreatorProfile = async (updated: Partial<Creator>) => {
@@ -545,6 +611,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setAdminLoginModalOpen,
         creatorSurveyModalOpen,
         setCreatorSurveyModalOpen,
+        paymentModalOpen,
+        setPaymentModalOpen,
+        selectedDealForPayment,
+        setSelectedDealForPayment,
         signupWithPassword,
         signupCreatorWithSurvey,
         loginWithPassword,
@@ -569,6 +639,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         createCampaign,
         sendDealOffer,
         depositEscrow,
+        confirmEscrowDeposit,
         submitDraft,
         approveDraftAndReleaseEscrow,
         requestRevision,
@@ -589,8 +660,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
 export const useApp = () => {
   const context = useContext(AppContext);
-  if (!context) {
-    throw new Error('useApp must be used within an AppProvider');
-  }
+  if (!context) throw new Error('useApp must be used within an AppProvider');
   return context;
 };

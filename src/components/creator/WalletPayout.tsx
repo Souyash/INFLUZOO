@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useApp } from '../../context/AppContext';
+import { api } from '../../services/api';
 import { 
   Wallet, 
   Lock, 
@@ -10,48 +11,102 @@ import {
   CreditCard, 
   Building, 
   Download,
+  Plus,
+  X,
+  Clock,
   Sparkles
 } from 'lucide-react';
 import { Badge } from '../common/Badge';
+import { Transaction, PayoutAccount } from '../../types';
 
 export const WalletPayout: React.FC = () => {
-  const { wallet, withdrawFunds } = useApp();
+  const { wallet, currentCreator, withdrawFunds, showToast } = useApp();
   const [withdrawAmount, setWithdrawAmount] = useState<number>(wallet.available);
   const [payoutMethod, setPayoutMethod] = useState<'stripe' | 'bank'>('stripe');
   const [isProcessing, setIsProcessing] = useState(false);
+  
+  // Real DB state
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [payoutAccounts, setPayoutAccounts] = useState<PayoutAccount[]>([]);
 
-  const handleWithdraw = (e: React.FormEvent) => {
+  // Add Bank Modal
+  const [addBankModalOpen, setAddBankModalOpen] = useState(false);
+  const [newBankName, setNewBankName] = useState('JPMorgan Chase Bank');
+  const [newAccountNumber, setNewAccountNumber] = useState('');
+  const [newRoutingNumber, setNewRoutingNumber] = useState('021000021');
+  const [newHolderName, setNewHolderName] = useState(currentCreator.name);
+
+  useEffect(() => {
+    setWithdrawAmount(wallet.available);
+    async function loadData() {
+      const txs = await api.getTransactions();
+      setTransactions(txs);
+      const accounts = await api.getPayoutMethods(currentCreator.id);
+      setPayoutAccounts(accounts);
+    }
+    loadData();
+  }, [wallet.available, currentCreator.id]);
+
+  const handleWithdraw = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (withdrawAmount <= 0) return;
+    if (withdrawAmount <= 0 || withdrawAmount > wallet.available) return;
 
     setIsProcessing(true);
-    setTimeout(() => {
-      withdrawFunds(withdrawAmount);
-      setIsProcessing(false);
-      setWithdrawAmount(0);
-    }, 900);
+    const success = await withdrawFunds(withdrawAmount);
+    setIsProcessing(false);
+
+    if (success) {
+      // Refresh transactions
+      const txs = await api.getTransactions();
+      setTransactions(txs);
+    }
   };
 
-  const payoutHistory = [
-    { id: 'tx-1', date: 'Aug 14, 2026', title: 'Clean Energy & Hydration Bottle Drop', brand: 'AeroHydrate', amount: '$1,200', status: 'Completed', method: 'Stripe Instant' },
-    { id: 'tx-2', date: 'Jul 28, 2026', title: 'Top 5 AI Tools Video Sponsorship', brand: 'Supabase', amount: '$1,800', status: 'Completed', method: 'Direct ACH' },
-    { id: 'tx-3', date: 'Jul 12, 2026', title: 'Productivity App Walkthrough Review', brand: 'Notion', amount: '$2,400', status: 'Completed', method: 'Stripe Instant' },
-  ];
+  const handleAddBank = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newBankName || !newAccountNumber || !newRoutingNumber) {
+      showToast('Please fill in all banking fields.', 'warning');
+      return;
+    }
+
+    const res = await api.addPayoutMethod({
+      creatorId: currentCreator.id,
+      bankName: newBankName,
+      accountNumber: newAccountNumber,
+      routingNumber: newRoutingNumber,
+      accountHolderName: newHolderName,
+    });
+
+    if (res.success && res.data) {
+      setPayoutAccounts(prev => [res.data!, ...prev]);
+      setAddBankModalOpen(false);
+      setNewAccountNumber('');
+      showToast('Bank payout account linked & verified in SQLite database!', 'success');
+    }
+  };
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">
       
       {/* Top Header */}
-      <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-800">
         <div>
           <h2 className="text-xl font-bold text-white flex items-center gap-2">
             Escrow Wallet & Payout Center
-            <Badge variant="emerald">Stripe Connect Active</Badge>
+            <Badge variant="emerald">Live SQLite Ledger</Badge>
           </h2>
           <p className="text-xs text-slate-400">
             Guaranteed milestone payments held in secure escrow. Instant payouts with 0% Influzo withdrawal fees.
           </p>
         </div>
+
+        <button
+          onClick={() => setAddBankModalOpen(true)}
+          className="px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-700 text-xs font-semibold text-white flex items-center gap-1.5 transition"
+        >
+          <Plus className="w-3.5 h-3.5 text-emerald-400" />
+          <span>Add Bank Account</span>
+        </button>
       </div>
 
       {/* Balances Grid */}
@@ -74,7 +129,7 @@ export const WalletPayout: React.FC = () => {
             <Lock className="w-4 h-4 text-violet-400" />
           </span>
           <p className="text-3xl font-black text-violet-400">${wallet.lockedEscrow.toLocaleString()}</p>
-          <span className="text-[11px] text-slate-400">Unlocks upon draft/post approval</span>
+          <span className="text-[11px] text-slate-400">Unlocks automatically on live post approval</span>
         </div>
 
         <div className="p-5 rounded-3xl bg-[#12131c] border border-slate-800 space-y-2 shadow-xl">
@@ -83,7 +138,7 @@ export const WalletPayout: React.FC = () => {
             <DollarSign className="w-4 h-4 text-amber-400" />
           </span>
           <p className="text-3xl font-black text-white">${wallet.totalEarned.toLocaleString()}</p>
-          <span className="text-[11px] text-slate-400">Across 54 Brand Collabs</span>
+          <span className="text-[11px] text-slate-400">Across completed brand collaborations</span>
         </div>
 
       </div>
@@ -94,16 +149,16 @@ export const WalletPayout: React.FC = () => {
           <div className="flex items-center gap-2">
             <CreditCard className="w-4 h-4 text-emerald-400" />
             <h3 className="text-xs font-bold uppercase tracking-wider text-white">
-              Instant Payout Request
+              Instant Bank Cash Out Request
             </h3>
           </div>
-          <span className="text-xs text-slate-400">Fee: $0.00 (Free)</span>
+          <span className="text-xs text-emerald-400 font-bold">Transfer Fee: $0.00 (Free)</span>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
             <label className="block text-xs font-semibold text-slate-300 mb-2">
-              Withdrawal Amount ($)
+              Withdrawal Amount ($ USD)
             </label>
             <div className="relative">
               <DollarSign className="w-4 h-4 text-slate-400 absolute left-3.5 top-2.5" />
@@ -140,7 +195,7 @@ export const WalletPayout: React.FC = () => {
                 }`}
               >
                 <CreditCard className="w-4 h-4" />
-                <span>Stripe Instant Debit</span>
+                <span>Instant Debit Card</span>
               </button>
 
               <button
@@ -153,16 +208,22 @@ export const WalletPayout: React.FC = () => {
                 }`}
               >
                 <Building className="w-4 h-4" />
-                <span>ACH Bank Transfer</span>
+                <span>Direct ACH Bank</span>
               </button>
             </div>
+
+            {payoutAccounts.length > 0 && (
+              <p className="text-[11px] text-slate-400 mt-1.5">
+                Target: {payoutAccounts[0].bankName} ({payoutAccounts[0].accountNumberMasked})
+              </p>
+            )}
           </div>
         </div>
 
         <div className="pt-2 flex flex-col sm:flex-row items-center justify-between gap-3">
           <div className="flex items-center gap-2 text-xs text-slate-400">
             <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0" />
-            <span>Transfers are processed securely through Stripe Connect 256-bit encryption.</span>
+            <span>Transfers are processed securely through 256-bit encrypted banking rails.</span>
           </div>
 
           <button
@@ -189,11 +250,10 @@ export const WalletPayout: React.FC = () => {
       <div className="p-6 rounded-3xl bg-[#12131c] border border-slate-800 space-y-4 shadow-xl">
         <div className="flex items-center justify-between pb-2 border-b border-slate-800">
           <h3 className="text-xs font-bold uppercase tracking-wider text-slate-300">
-            Recent Escrow Payout History
+            Live Financial Transaction Ledger ({transactions.length})
           </h3>
-          <span className="text-xs text-slate-400 flex items-center gap-1">
-            <Download className="w-3.5 h-3.5 text-violet-400" />
-            <span>Download 1099 Tax PDF</span>
+          <span className="text-xs text-slate-400 flex items-center gap-1 font-mono">
+            <span>SQLite WAL Store</span>
           </span>
         </div>
 
@@ -201,33 +261,136 @@ export const WalletPayout: React.FC = () => {
           <table className="w-full text-left text-xs">
             <thead>
               <tr className="border-b border-slate-800 text-slate-400 uppercase tracking-wider text-[10px]">
-                <th className="pb-3 font-semibold">Date</th>
-                <th className="pb-3 font-semibold">Campaign / Brand</th>
-                <th className="pb-3 font-semibold">Payout Method</th>
+                <th className="pb-3 font-semibold">Tx ID</th>
+                <th className="pb-3 font-semibold">Date & Time</th>
+                <th className="pb-3 font-semibold">Description</th>
+                <th className="pb-3 font-semibold">Method</th>
                 <th className="pb-3 font-semibold">Status</th>
                 <th className="pb-3 font-semibold text-right">Amount</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-800/80">
-              {payoutHistory.map((tx) => (
+              {transactions.map((tx) => (
                 <tr key={tx.id} className="hover:bg-slate-900/40 transition">
-                  <td className="py-3 text-slate-400">{tx.date}</td>
+                  <td className="py-3 font-mono text-slate-500 text-[11px]">{tx.id}</td>
+                  <td className="py-3 text-slate-400">{tx.createdAt}</td>
                   <td className="py-3 font-bold text-white">
-                    {tx.brand} <span className="text-slate-400 font-normal">({tx.title})</span>
+                    {tx.type === 'deposit' && `Escrow Deposit from ${tx.payerName}`}
+                    {tx.type === 'release' && `Milestone Release to ${tx.recipientName}`}
+                    {tx.type === 'withdrawal' && `Bank Cash Out to ${tx.recipientName}`}
                   </td>
-                  <td className="py-3 text-slate-300">{tx.method}</td>
+                  <td className="py-3 text-slate-300 font-mono text-[11px] uppercase">{tx.paymentMethod}</td>
                   <td className="py-3">
                     <span className="px-2 py-0.5 rounded-md bg-emerald-950/80 border border-emerald-500/40 text-emerald-300 font-semibold text-[11px]">
                       {tx.status}
                     </span>
                   </td>
-                  <td className="py-3 text-right font-black text-emerald-400">{tx.amount}</td>
+                  <td className={`py-3 text-right font-black ${
+                    tx.type === 'withdrawal' ? 'text-rose-400' : 'text-emerald-400'
+                  }`}>
+                    {tx.type === 'withdrawal' ? `-$${tx.amount.toLocaleString()}` : `+$${tx.amount.toLocaleString()}`}
+                  </td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
       </div>
+
+      {/* --- ADD BANK ACCOUNT MODAL --- */}
+      {addBankModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-in fade-in">
+          <div className="relative max-w-md w-full bg-[#10111a] border border-emerald-500/40 rounded-3xl p-6 space-y-4 text-slate-100 shadow-2xl glow-emerald">
+            <div className="flex items-center justify-between">
+              <h4 className="text-sm font-bold text-white flex items-center gap-2">
+                <Building className="w-4 h-4 text-emerald-400" />
+                Link Bank Account for Instant Payouts
+              </h4>
+              <button
+                onClick={() => setAddBankModalOpen(false)}
+                className="p-1.5 rounded-full bg-slate-900 text-slate-400 hover:text-white"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleAddBank} className="space-y-3">
+              <div>
+                <label className="block text-[11px] font-bold uppercase text-slate-400 mb-1">
+                  Bank Name
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={newBankName}
+                  onChange={(e) => setNewBankName(e.target.value)}
+                  className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-emerald-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-bold uppercase text-slate-400 mb-1">
+                  Account Number
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. 1029384756"
+                  value={newAccountNumber}
+                  onChange={(e) => setNewAccountNumber(e.target.value)}
+                  className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white font-mono focus:outline-none focus:border-emerald-500"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[11px] font-bold uppercase text-slate-400 mb-1">
+                    Routing / IFSC
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={newRoutingNumber}
+                    onChange={(e) => setNewRoutingNumber(e.target.value)}
+                    className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white font-mono focus:outline-none focus:border-emerald-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-bold uppercase text-slate-400 mb-1">
+                    Account Holder
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={newHolderName}
+                    onChange={(e) => setNewHolderName(e.target.value)}
+                    className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-emerald-500"
+                  />
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-2 pt-3">
+                <button
+                  type="button"
+                  onClick={() => setAddBankModalOpen(false)}
+                  className="px-4 py-2 rounded-xl text-xs text-slate-400 hover:text-white"
+                >
+                  Cancel
+                </button>
+
+                <button
+                  type="submit"
+                  className="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow-lg shadow-emerald-600/30 transition flex items-center gap-1.5"
+                >
+                  <CheckCircle2 className="w-3.5 h-3.5" />
+                  <span>Save & Verify Bank</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
     </div>
   );

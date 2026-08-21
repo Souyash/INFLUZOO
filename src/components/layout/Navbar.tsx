@@ -22,7 +22,8 @@ import {
   LogOut,
   ChevronDown,
   ArrowRight,
-  LogIn
+  LogIn,
+  DollarSign
 } from 'lucide-react';
 import { Badge } from '../common/Badge';
 
@@ -217,6 +218,15 @@ export const Navbar: React.FC = () => {
                 >
                   <Scale className="w-3.5 h-3.5" />
                   Dispute Arbitrator {openDisputesCount > 0 && `(${openDisputesCount})`}
+                </button>
+                <button
+                  onClick={() => { setPerspective('admin'); setAdminTab('transactions'); }}
+                  className={`px-3.5 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1.5 transition ${
+                    adminTab === 'transactions' ? 'bg-red-950/60 text-red-300 border border-red-700/50 font-bold' : 'text-slate-400 hover:text-white'
+                  }`}
+                >
+                  <DollarSign className="w-3.5 h-3.5" />
+                  Financial Ledger
                 </button>
                 <button
                   onClick={() => { setPerspective('admin'); setAdminTab('settings'); }}

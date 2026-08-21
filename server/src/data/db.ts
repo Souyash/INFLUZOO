@@ -11,7 +11,9 @@ import {
   PlatformConfig, 
   User, 
   UserRole,
-  AdminMetrics 
+  AdminMetrics,
+  Transaction,
+  PayoutAccount
 } from '../types/index.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -73,6 +75,9 @@ sqlite.exec(`
     kyc_submitted_at TEXT,
     kyc_reviewed_at TEXT,
     kyc_rejection_reason TEXT,
+    wallet_available REAL DEFAULT 0,
+    wallet_locked REAL DEFAULT 0,
+    wallet_earned REAL DEFAULT 0,
     created_at TEXT NOT NULL
   );
 
@@ -123,6 +128,34 @@ sqlite.exec(`
     completed_at TEXT
   );
 
+  CREATE TABLE IF NOT EXISTS transactions (
+    id TEXT PRIMARY KEY,
+    deal_id TEXT,
+    type TEXT NOT NULL,
+    amount REAL NOT NULL,
+    platform_fee REAL DEFAULT 0,
+    net_amount REAL NOT NULL,
+    currency TEXT DEFAULT 'USD',
+    payment_method TEXT NOT NULL,
+    payment_intent_id TEXT,
+    status TEXT NOT NULL,
+    payer_name TEXT NOT NULL,
+    recipient_name TEXT NOT NULL,
+    created_at TEXT NOT NULL
+  );
+
+  CREATE TABLE IF NOT EXISTS payout_accounts (
+    id TEXT PRIMARY KEY,
+    creator_id TEXT NOT NULL,
+    bank_name TEXT NOT NULL,
+    account_number_masked TEXT NOT NULL,
+    routing_number TEXT NOT NULL,
+    account_holder_name TEXT NOT NULL,
+    currency TEXT DEFAULT 'USD',
+    is_default INTEGER DEFAULT 1,
+    created_at TEXT NOT NULL
+  );
+
   CREATE TABLE IF NOT EXISTS audit_logs (
     id TEXT PRIMARY KEY,
     action TEXT NOT NULL,
@@ -146,32 +179,21 @@ sqlite.exec(`
   );
 `);
 
-// Ensure migration for existing tables if columns are missing
-try {
-  sqlite.exec(`ALTER TABLE creators ADD COLUMN kyc_photo TEXT;`);
-} catch {}
-try {
-  sqlite.exec(`ALTER TABLE creators ADD COLUMN kyc_submitted_at TEXT;`);
-} catch {}
-try {
-  sqlite.exec(`ALTER TABLE creators ADD COLUMN kyc_reviewed_at TEXT;`);
-} catch {}
-try {
-  sqlite.exec(`ALTER TABLE creators ADD COLUMN kyc_rejection_reason TEXT;`);
-} catch {}
+// Dynamic column migrations
+try { sqlite.exec(`ALTER TABLE creators ADD COLUMN wallet_available REAL DEFAULT 0;`); } catch {}
+try { sqlite.exec(`ALTER TABLE creators ADD COLUMN wallet_locked REAL DEFAULT 0;`); } catch {}
+try { sqlite.exec(`ALTER TABLE creators ADD COLUMN wallet_earned REAL DEFAULT 0;`); } catch {}
+try { sqlite.exec(`ALTER TABLE creators ADD COLUMN kyc_photo TEXT;`); } catch {}
+try { sqlite.exec(`ALTER TABLE creators ADD COLUMN kyc_submitted_at TEXT;`); } catch {}
+try { sqlite.exec(`ALTER TABLE creators ADD COLUMN kyc_reviewed_at TEXT;`); } catch {}
+try { sqlite.exec(`ALTER TABLE creators ADD COLUMN kyc_rejection_reason TEXT;`); } catch {}
 
-console.log(`[SQLITE] Influzo SQLite Database initialized at: ${DB_PATH}`);
+console.log(`[SQLITE] Influzo Relational Database loaded with Transaction Ledger at: ${DB_PATH}`);
 
-// Helper to safely parse JSON
 function safeJsonParse<T>(str: string, fallback: T): T {
-  try {
-    return JSON.parse(str);
-  } catch {
-    return fallback;
-  }
+  try { return JSON.parse(str); } catch { return fallback; }
 }
 
-// Convert DB row to Creator object
 function rowToCreator(row: any): Creator {
   return {
     id: row.id,
@@ -207,7 +229,6 @@ function rowToCreator(row: any): Creator {
   };
 }
 
-// Convert DB row to Campaign object
 function rowToCampaign(row: any): Campaign {
   return {
     id: row.id,
@@ -228,7 +249,6 @@ function rowToCampaign(row: any): Campaign {
   };
 }
 
-// Convert DB row to Deal object
 function rowToDeal(row: any): Deal {
   return {
     id: row.id,
@@ -259,7 +279,6 @@ function rowToDeal(row: any): Deal {
   };
 }
 
-// Convert DB row to User object
 function rowToUser(row: any): User {
   return {
     id: row.id,
@@ -274,17 +293,71 @@ function rowToUser(row: any): User {
   };
 }
 
-// Seed initial database if empty
+function rowToTransaction(row: any): Transaction {
+  return {
+    id: row.id,
+    dealId: row.deal_id || undefined,
+    type: row.type,
+    amount: row.amount,
+    platformFee: row.platform_fee,
+    netAmount: row.net_amount,
+    currency: row.currency || 'USD',
+    paymentMethod: row.payment_method,
+    paymentIntentId: row.payment_intent_id || undefined,
+    status: row.status,
+    payerName: row.payer_name,
+    recipientName: row.recipient_name,
+    createdAt: row.created_at,
+  };
+}
+
+function rowToPayoutAccount(row: any): PayoutAccount {
+  return {
+    id: row.id,
+    creatorId: row.creator_id,
+    bankName: row.bank_name,
+    accountNumberMasked: row.account_number_masked,
+    routingNumber: row.routing_number,
+    accountHolderName: row.account_holder_name,
+    currency: row.currency || 'USD',
+    isDefault: Boolean(row.is_default),
+    createdAt: row.created_at,
+  };
+}
+
+// Seed initial database
 function seedDatabaseIfEmpty() {
   const userCount = sqlite.prepare('SELECT COUNT(*) as count FROM users').get() as { count: number };
-  if (userCount.count > 0) return;
+  if (userCount.count > 0) {
+    // Seed initial transactions if empty
+    const txCount = sqlite.prepare('SELECT COUNT(*) as count FROM transactions').get() as { count: number };
+    if (txCount.count === 0) {
+      sqlite.prepare(`
+        INSERT INTO transactions (id, deal_id, type, amount, platform_fee, net_amount, currency, payment_method, payment_intent_id, status, payer_name, recipient_name, created_at)
+        VALUES 
+          ('tx-101', 'deal-101', 'deposit', 1600, 120, 1480, 'USD', 'stripe_card', 'pi_3MtwL2KZomN3UrX0001', 'succeeded', 'TaskFlow AI', 'Elena Rostova (Escrow Vault)', '2026-08-10 14:22:00'),
+          ('tx-102', null, 'release', 2400, 180, 2220, 'USD', 'escrow_wallet', null, 'succeeded', 'Influzo Escrow Vault', 'Elena Rostova', '2026-08-08 11:30:00'),
+          ('tx-103', null, 'withdrawal', 1500, 0, 1500, 'USD', 'bank_transfer', 'payout_w1234', 'succeeded', 'Elena Rostova', 'Chase Bank (•••• 4821)', '2026-08-09 16:45:00')
+      `).run();
+    }
+
+    // Seed default payout account if empty
+    const poCount = sqlite.prepare('SELECT COUNT(*) as count FROM payout_accounts').get() as { count: number };
+    if (poCount.count === 0) {
+      sqlite.prepare(`
+        INSERT INTO payout_accounts (id, creator_id, bank_name, account_number_masked, routing_number, account_holder_name, currency, is_default, created_at)
+        VALUES ('po-1', 'c-1', 'JPMorgan Chase Bank, N.A.', '•••• •••• •••• 4821', '021000021', 'Elena Rostova', 'USD', 1, '2026-08-06')
+      `).run();
+    }
+    return;
+  }
 
   console.log('[SQLITE] Seeding initial database records...');
 
   const defaultPasswordHash = bcrypt.hashSync('password123', 10);
   const adminPasswordHash = bcrypt.hashSync('admin123', 10);
 
-  // 1. Seed Users
+  // 1. Users
   const insertUser = sqlite.prepare(`
     INSERT INTO users (id, email, password_hash, name, role, avatar, onboarded, creator_profile_id, created_at)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -294,15 +367,16 @@ function seedDatabaseIfEmpty() {
   insertUser.run('u-creator-1', 'elena@techreviews.com', defaultPasswordHash, 'Elena Rostova', 'creator', 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400&auto=format&fit=crop&q=80', 1, 'c-1', '2026-08-05');
   insertUser.run('u-brand-1', 'growth@taskflow.ai', defaultPasswordHash, 'TaskFlow AI Growth Team', 'brand', 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=120&auto=format&fit=crop&q=80', 1, null, '2026-08-08');
 
-  // 2. Seed Creators
+  // 2. Creators
   const insertCreator = sqlite.prepare(`
     INSERT INTO creators (
       id, user_id, name, handle, avatar, cover_image, bio, location, verified,
       verification_status, authenticity_score, rating, review_count, niches,
       primary_platform, followers_count, avg_engagement_rate, avg_views_per_post,
       price_range, platforms_json, audience_demographics_json, stats_json,
-      sample_work_json, packages_json, featured, kyc_photo, kyc_submitted_at, created_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      sample_work_json, packages_json, featured, kyc_photo, kyc_submitted_at,
+      wallet_available, wallet_locked, wallet_earned, created_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
 
   insertCreator.run(
@@ -334,15 +408,12 @@ function seedDatabaseIfEmpty() {
       topCountries: [
         { name: 'United States', percentage: 48 },
         { name: 'United Kingdom', percentage: 18 },
-        { name: 'Germany', percentage: 12 },
-        { name: 'Canada', percentage: 9 },
-        { name: 'Other', percentage: 13 }
+        { name: 'Germany', percentage: 12 }
       ],
       ageGroups: [
         { label: '18-24', percentage: 22 },
         { label: '25-34', percentage: 54 },
-        { label: '35-44', percentage: 18 },
-        { label: '45+', percentage: 6 }
+        { label: '35-44', percentage: 18 }
       ],
       genderSplit: { female: 38, male: 59, other: 3 }
     }),
@@ -357,6 +428,9 @@ function seedDatabaseIfEmpty() {
     1,
     'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400&auto=format&fit=crop&q=80',
     '2026-08-05 10:30:00',
+    2400,
+    1600,
+    28400,
     '2026-08-05'
   );
 
@@ -380,65 +454,21 @@ function seedDatabaseIfEmpty() {
     5.8,
     92000,
     '$600 - $2,400',
-    JSON.stringify([
-      { platform: 'instagram', handle: '@marcus_vance_fit', followers: 340000, engagementRate: 6.2, avgViews: 110000, profileUrl: '#' }
-    ]),
-    JSON.stringify({
-      topCountries: [{ name: 'United States', percentage: 55 }, { name: 'Australia', percentage: 14 }],
-      ageGroups: [{ label: '18-24', percentage: 34 }, { label: '25-34', percentage: 48 }],
-      genderSplit: { female: 32, male: 66, other: 2 }
-    }),
+    JSON.stringify([{ platform: 'instagram', handle: '@marcus_vance_fit', followers: 340000, engagementRate: 6.2, avgViews: 110000, profileUrl: '#' }]),
+    JSON.stringify({ topCountries: [{ name: 'United States', percentage: 55 }], ageGroups: [{ label: '18-24', percentage: 34 }], genderSplit: { female: 32, male: 66, other: 2 } }),
     JSON.stringify({ completedCollabs: 67, onTimeRate: 98, responseHours: 1, repeatBrandRate: 91 }),
     JSON.stringify([]),
-    JSON.stringify([
-      { id: 'pkg-4', title: 'Instagram Reel + 3x Story Sequence', description: '1 high-energy Reel showcasing product in workout routine + 3 swipe-up Stories with promo code.', price: 1200, deliverables: ['1x 4K Instagram Reel', '3x Story frames with sticker link'], turnaroundDays: 4, popular: true }
-    ]),
+    JSON.stringify([{ id: 'pkg-4', title: 'Instagram Reel + 3x Story Sequence', description: '1 high-energy Reel showcasing product in workout routine + 3 swipe-up Stories with promo code.', price: 1200, deliverables: ['1x 4K Instagram Reel', '3x Story frames with sticker link'], turnaroundDays: 4, popular: true }]),
     0,
     'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=400&auto=format&fit=crop&q=80',
     '2026-08-06 14:15:00',
+    1200,
+    0,
+    18200,
     '2026-08-06'
   );
 
-  insertCreator.run(
-    'c-99',
-    null,
-    'Zara Kova',
-    '@zarafashiontech',
-    'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=400&auto=format&fit=crop&q=80',
-    'https://images.unsplash.com/photo-1469334031218-e382a71b716b?w=1200&auto=format&fit=crop&q=80',
-    'Wearable tech & futuristic cyber fashion creator. Applying for Influzo Verified Creator Program.',
-    'Berlin, Germany',
-    0,
-    'pending',
-    94.2,
-    4.85,
-    14,
-    JSON.stringify(['Fashion & Apparel', 'Tech & AI']),
-    'tiktok',
-    180000,
-    7.8,
-    48000,
-    '$450 - $1,500',
-    JSON.stringify([
-      { platform: 'tiktok', handle: '@zarakova_tech', followers: 180000, engagementRate: 7.8, avgViews: 48000, profileUrl: '#' }
-    ]),
-    JSON.stringify({
-      topCountries: [{ name: 'Germany', percentage: 45 }, { name: 'UK', percentage: 25 }],
-      ageGroups: [{ label: '18-24', percentage: 55 }, { label: '25-34', percentage: 35 }],
-      genderSplit: { female: 72, male: 25, other: 3 }
-    }),
-    JSON.stringify({ completedCollabs: 12, onTimeRate: 100, responseHours: 2, repeatBrandRate: 80 }),
-    JSON.stringify([]),
-    JSON.stringify([
-      { id: 'pkg-99', title: 'TikTok Tech Showcase', description: '1x aesthetic vertical video showing wearable device in outfit transition.', price: 550, deliverables: ['1x TikTok Video', 'Link in Bio for 7 days'], turnaroundDays: 3 }
-    ]),
-    0,
-    'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=400&auto=format&fit=crop&q=80',
-    '2026-08-07 09:20:00',
-    '2026-08-07'
-  );
-
-  // 3. Seed Campaigns
+  // 3. Campaigns
   const insertCampaign = sqlite.prepare(`
     INSERT INTO campaigns (
       id, brand_id, title, brand_name, brand_logo, niche, status,
@@ -466,7 +496,7 @@ function seedDatabaseIfEmpty() {
     '2026-08-10'
   );
 
-  // 4. Seed Deals
+  // 4. Deals
   const insertDeal = sqlite.prepare(`
     INSERT INTO deals (
       id, campaign_id, campaign_title, brand_name, brand_logo, creator_id,
@@ -490,7 +520,7 @@ function seedDatabaseIfEmpty() {
     'youtube',
     'Dedicated YouTube Integration (60-90s)',
     1600,
-    'draft_submitted',
+    'escrow_locked',
     'draft_review',
     JSON.stringify(['60-90s mid-roll product demonstration', 'Pinned comment with discount tracking link']),
     'Focus on real-time AI transcription and productivity.',
@@ -505,44 +535,29 @@ function seedDatabaseIfEmpty() {
     null
   );
 
-  insertDeal.run(
-    'deal-999',
-    null,
-    'AI Noise Canceling Earbuds Promotion',
-    'SonicPeak Labs',
-    'https://images.unsplash.com/photo-1590658268037-6bf12165a8df?w=120&auto=format&fit=crop&q=80',
-    'c-2',
-    'Marcus Vance',
-    '@marcusfitness',
-    'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=400&auto=format&fit=crop&q=80',
-    'instagram',
-    'Instagram Reel + 3x Story Sequence',
-    1200,
-    'disputed',
-    'draft_review',
-    JSON.stringify(['1x Reel showing outdoor gym training', '3x Stories']),
-    'Showcase noise canceling during heavy gym session.',
-    null,
-    null,
-    null,
-    'Brand claims the outdoor audio did not follow script; Creator argues deliverable met all agreed requirements.',
-    '2026-08-15 11:20:00',
-    null,
-    '2026-08-05',
-    '2026-08-15',
-    null
-  );
+  // 5. Transactions
+  sqlite.prepare(`
+    INSERT INTO transactions (id, deal_id, type, amount, platform_fee, net_amount, currency, payment_method, payment_intent_id, status, payer_name, recipient_name, created_at)
+    VALUES 
+      ('tx-101', 'deal-101', 'deposit', 1600, 120, 1480, 'USD', 'stripe_card', 'pi_3MtwL2KZomN3UrX0001', 'succeeded', 'TaskFlow AI', 'Elena Rostova (Escrow Vault)', '2026-08-10 14:22:00'),
+      ('tx-102', null, 'release', 2400, 180, 2220, 'USD', 'escrow_wallet', null, 'succeeded', 'Influzo Escrow Vault', 'Elena Rostova', '2026-08-08 11:30:00'),
+      ('tx-103', null, 'withdrawal', 1500, 0, 1500, 'USD', 'bank_transfer', 'payout_w1234', 'succeeded', 'Elena Rostova', 'Chase Bank (•••• 4821)', '2026-08-09 16:45:00')
+  `).run();
 
-  // 5. Seed Audit Logs
+  // 6. Payout Accounts
+  sqlite.prepare(`
+    INSERT INTO payout_accounts (id, creator_id, bank_name, account_number_masked, routing_number, account_holder_name, currency, is_default, created_at)
+    VALUES ('po-1', 'c-1', 'JPMorgan Chase Bank, N.A.', '•••• •••• •••• 4821', '021000021', 'Elena Rostova', 'USD', 1, '2026-08-06')
+  `).run();
+
+  // 7. Audit Logs
   const insertAudit = sqlite.prepare(`
     INSERT INTO audit_logs (id, action, entity_type, entity_id, details, actor, timestamp)
     VALUES (?, ?, ?, ?, ?, ?, ?)
   `);
+  insertAudit.run('log-1', 'ESCROW_DEPOSIT_LOCKED', 'escrow', 'deal-101', 'TaskFlow AI deposited $1,600 into Smart Escrow with Visa •••• 4242.', 'Brand: TaskFlow AI', '2026-08-10 14:22:05');
 
-  insertAudit.run('log-1', 'ESCROW_DEPOSIT_LOCKED', 'escrow', 'deal-101', 'TaskFlow AI locked $1,600 into Smart Escrow for Elena Rostova.', 'Brand: TaskFlow AI', '2026-08-10 14:22:05');
-  insertAudit.run('log-2', 'CREATOR_VERIFIED', 'creator', 'c-1', 'Super Admin verified Elena Rostova (@elenatech) with 98.8% authenticity score.', 'Super Admin: Alex Rivera', '2026-08-11 09:15:30');
-
-  // 6. Seed Config
+  // 8. Config
   const insertConfig = sqlite.prepare(`INSERT OR REPLACE INTO platform_config (key, value) VALUES (?, ?)`);
   insertConfig.run('platformTakeRatePercent', '7.5');
   insertConfig.run('minEscrowDepositUSD', '250');
@@ -550,21 +565,18 @@ function seedDatabaseIfEmpty() {
   insertConfig.run('aiMatchingModel', 'Gemini 2.0 Flash Enterprise');
   insertConfig.run('maintenanceMode', 'false');
 
-  console.log('[SQLITE] Database seeding complete!');
+  console.log('[SQLITE] Database seeding complete with real ledger records!');
 }
 
 seedDatabaseIfEmpty();
 
-// Database Access Object with clean typed query methods
+// Database Access Object
 export const db = {
   // --- USERS & AUTH ---
   getUserByEmail(email: string): (User & { passwordHash?: string }) | null {
     const row = sqlite.prepare('SELECT * FROM users WHERE LOWER(email) = LOWER(?)').get(email.trim()) as any;
     if (!row) return null;
-    return {
-      ...rowToUser(row),
-      passwordHash: row.password_hash,
-    };
+    return { ...rowToUser(row), passwordHash: row.password_hash };
   },
 
   getUserById(id: string): User | null {
@@ -572,16 +584,7 @@ export const db = {
     return row ? rowToUser(row) : null;
   },
 
-  createUser(user: {
-    id?: string;
-    email: string;
-    passwordHash?: string;
-    name: string;
-    role: UserRole;
-    avatar?: string;
-    onboarded?: boolean;
-    creatorProfileId?: string;
-  }): User {
+  createUser(user: { id?: string; email: string; passwordHash?: string; name: string; role: UserRole; avatar?: string; onboarded?: boolean; creatorProfileId?: string }): User {
     const id = user.id || `u-${Date.now()}`;
     const createdAt = new Date().toISOString().split('T')[0];
     const avatar = user.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400&auto=format&fit=crop&q=80';
@@ -595,38 +598,15 @@ export const db = {
     return this.getUserById(id)!;
   },
 
-  updateUser(id: string, updates: Partial<User>): User | null {
-    const current = this.getUserById(id);
-    if (!current) return null;
-
-    const name = updates.name !== undefined ? updates.name : current.name;
-    const avatar = updates.avatar !== undefined ? updates.avatar : current.avatar;
-    const onboarded = updates.onboarded !== undefined ? (updates.onboarded ? 1 : 0) : (current.onboarded ? 1 : 0);
-    const creatorProfileId = updates.creatorProfileId !== undefined ? updates.creatorProfileId : current.creatorProfileId;
-
-    sqlite.prepare(`
-      UPDATE users SET name = ?, avatar = ?, onboarded = ?, creator_profile_id = ? WHERE id = ?
-    `).run(name, avatar, onboarded, creatorProfileId || null, id);
-
-    return this.getUserById(id);
-  },
-
   // --- OTP CODES ---
   setOTP(emailOrPhone: string, code: string, role: UserRole): void {
     const expiresAt = Date.now() + 5 * 60 * 1000;
-    sqlite.prepare(`
-      INSERT OR REPLACE INTO otp_codes (email_or_phone, code, role, expires_at)
-      VALUES (?, ?, ?, ?)
-    `).run(emailOrPhone.toLowerCase().trim(), code, role, expiresAt);
+    sqlite.prepare(`INSERT OR REPLACE INTO otp_codes (email_or_phone, code, role, expires_at) VALUES (?, ?, ?, ?)`).run(emailOrPhone.toLowerCase().trim(), code, role, expiresAt);
   },
 
   verifyOTP(emailOrPhone: string, code: string): { valid: boolean; role?: UserRole } {
-    const row = sqlite.prepare(`
-      SELECT * FROM otp_codes WHERE LOWER(email_or_phone) = LOWER(?) AND code = ? AND expires_at > ?
-    `).get(emailOrPhone.trim(), code.trim(), Date.now()) as any;
-
+    const row = sqlite.prepare(`SELECT * FROM otp_codes WHERE LOWER(email_or_phone) = LOWER(?) AND code = ? AND expires_at > ?`).get(emailOrPhone.trim(), code.trim(), Date.now()) as any;
     if (!row) return { valid: false };
-
     sqlite.prepare('DELETE FROM otp_codes WHERE LOWER(email_or_phone) = LOWER(?)').run(emailOrPhone.trim());
     return { valid: true, role: row.role as UserRole };
   },
@@ -635,31 +615,12 @@ export const db = {
   getCreators(params?: { niche?: string; platform?: string; verified?: boolean; q?: string }): Creator[] {
     let query = 'SELECT * FROM creators WHERE 1=1';
     const bindings: any[] = [];
-
-    if (params?.niche && params.niche !== 'all') {
-      query += ' AND niches LIKE ?';
-      bindings.push(`%${params.niche}%`);
-    }
-
-    if (params?.platform && params.platform !== 'all') {
-      query += ' AND primary_platform = ?';
-      bindings.push(params.platform);
-    }
-
-    if (params?.verified !== undefined) {
-      query += ' AND verified = ?';
-      bindings.push(params.verified ? 1 : 0);
-    }
-
-    if (params?.q) {
-      query += ' AND (name LIKE ? OR handle LIKE ? OR bio LIKE ?)';
-      bindings.push(`%${params.q}%`, `%${params.q}%`, `%${params.q}%`);
-    }
-
+    if (params?.niche && params.niche !== 'all') { query += ' AND niches LIKE ?'; bindings.push(`%${params.niche}%`); }
+    if (params?.platform && params.platform !== 'all') { query += ' AND primary_platform = ?'; bindings.push(params.platform); }
+    if (params?.verified !== undefined) { query += ' AND verified = ?'; bindings.push(params.verified ? 1 : 0); }
+    if (params?.q) { query += ' AND (name LIKE ? OR handle LIKE ? OR bio LIKE ?)'; bindings.push(`%${params.q}%`, `%${params.q}%`, `%${params.q}%`); }
     query += ' ORDER BY verified DESC, created_at DESC';
-
-    const rows = sqlite.prepare(query).all(...bindings);
-    return rows.map(rowToCreator);
+    return sqlite.prepare(query).all(...bindings).map(rowToCreator);
   },
 
   getCreatorById(id: string): Creator | null {
@@ -680,48 +641,23 @@ export const db = {
         primary_platform, followers_count, avg_engagement_rate, avg_views_per_post,
         price_range, platforms_json, audience_demographics_json, stats_json,
         sample_work_json, packages_json, featured, kyc_photo, kyc_submitted_at,
-        kyc_reviewed_at, kyc_rejection_reason, created_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        kyc_reviewed_at, kyc_rejection_reason, wallet_available, wallet_locked, wallet_earned, created_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
-      creator.id,
-      creator.userId || null,
-      creator.name,
-      creator.handle,
-      creator.avatar,
-      creator.coverImage,
-      creator.bio,
-      creator.location,
-      creator.verified ? 1 : 0,
-      creator.verificationStatus || 'pending',
-      creator.authenticityScore || 95,
-      creator.rating || 5.0,
-      creator.reviewCount || 0,
-      JSON.stringify(creator.niches),
-      creator.primaryPlatform,
-      creator.followersCount,
-      creator.avgEngagementRate,
-      creator.avgViewsPerPost,
-      creator.priceRange,
-      JSON.stringify(creator.platforms),
-      JSON.stringify(creator.audienceDemographics),
-      JSON.stringify(creator.stats),
-      JSON.stringify(creator.sampleWork),
-      JSON.stringify(creator.packages),
-      creator.featured ? 1 : 0,
-      creator.kycPhoto || null,
-      creator.kycSubmittedAt || new Date().toISOString().replace('T', ' ').slice(0, 19),
-      creator.kycReviewedAt || null,
-      creator.kycRejectionReason || null,
-      creator.createdAt || new Date().toISOString().split('T')[0]
+      creator.id, creator.userId || null, creator.name, creator.handle, creator.avatar, creator.coverImage, creator.bio, creator.location,
+      creator.verified ? 1 : 0, creator.verificationStatus || 'pending', creator.authenticityScore || 95, creator.rating || 5.0, creator.reviewCount || 0,
+      JSON.stringify(creator.niches), creator.primaryPlatform, creator.followersCount, creator.avgEngagementRate, creator.avgViewsPerPost,
+      creator.priceRange, JSON.stringify(creator.platforms), JSON.stringify(creator.audienceDemographics), JSON.stringify(creator.stats),
+      JSON.stringify(creator.sampleWork), JSON.stringify(creator.packages), creator.featured ? 1 : 0, creator.kycPhoto || null,
+      creator.kycSubmittedAt || new Date().toISOString().replace('T', ' ').slice(0, 19), creator.kycReviewedAt || null, creator.kycRejectionReason || null,
+      0, 0, 0, creator.createdAt || new Date().toISOString().split('T')[0]
     );
-
     return this.getCreatorById(creator.id)!;
   },
 
   updateCreator(id: string, updates: Partial<Creator>): Creator | null {
     const current = this.getCreatorById(id);
     if (!current) return null;
-
     const merged = { ...current, ...updates };
 
     sqlite.prepare(`
@@ -734,30 +670,13 @@ export const db = {
         kyc_reviewed_at = ?, kyc_rejection_reason = ?
       WHERE id = ?
     `).run(
-      merged.name,
-      merged.handle,
-      merged.avatar,
-      merged.coverImage,
-      merged.bio,
-      merged.location,
-      merged.verified ? 1 : 0,
-      merged.verificationStatus,
-      merged.authenticityScore,
-      JSON.stringify(merged.niches),
-      merged.primaryPlatform,
-      merged.followersCount,
-      merged.avgEngagementRate,
-      merged.avgViewsPerPost,
-      merged.priceRange,
-      JSON.stringify(merged.platforms),
-      JSON.stringify(merged.audienceDemographics),
-      JSON.stringify(merged.packages),
-      merged.kycPhoto || null,
-      merged.kycReviewedAt || null,
-      merged.kycRejectionReason || null,
-      id
+      merged.name, merged.handle, merged.avatar, merged.coverImage, merged.bio, merged.location,
+      merged.verified ? 1 : 0, merged.verificationStatus, merged.authenticityScore, JSON.stringify(merged.niches),
+      merged.primaryPlatform, merged.followersCount, merged.avgEngagementRate, merged.avgViewsPerPost,
+      merged.priceRange, JSON.stringify(merged.platforms), JSON.stringify(merged.audienceDemographics),
+      JSON.stringify(merged.packages), merged.kycPhoto || null, merged.kycReviewedAt || null,
+      merged.kycRejectionReason || null, id
     );
-
     return this.getCreatorById(id);
   },
 
@@ -765,13 +684,9 @@ export const db = {
   getCampaigns(brandId?: string): Campaign[] {
     let query = 'SELECT * FROM campaigns';
     const bindings: any[] = [];
-    if (brandId) {
-      query += ' WHERE brand_id = ?';
-      bindings.push(brandId);
-    }
+    if (brandId) { query += ' WHERE brand_id = ?'; bindings.push(brandId); }
     query += ' ORDER BY created_at DESC';
-    const rows = sqlite.prepare(query).all(...bindings);
-    return rows.map(rowToCampaign);
+    return sqlite.prepare(query).all(...bindings).map(rowToCampaign);
   },
 
   getCampaignById(id: string): Campaign | null {
@@ -787,24 +702,11 @@ export const db = {
         deliverables_summary, deadline, target_platforms_json, metrics_json, created_at
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
-      campaign.id,
-      campaign.brandId || null,
-      campaign.title,
-      campaign.brandName,
-      campaign.brandLogo,
-      campaign.niche,
-      campaign.status,
-      campaign.totalBudget,
-      campaign.allocatedBudget,
-      campaign.creatorsTargetCount,
-      campaign.creatorsHiredCount,
-      campaign.deliverablesSummary,
-      campaign.deadline,
-      JSON.stringify(campaign.targetPlatforms),
-      JSON.stringify(campaign.metrics),
-      new Date().toISOString().split('T')[0]
+      campaign.id, campaign.brandId || null, campaign.title, campaign.brandName, campaign.brandLogo,
+      campaign.niche, campaign.status, campaign.totalBudget, campaign.allocatedBudget, campaign.creatorsTargetCount,
+      campaign.creatorsHiredCount, campaign.deliverablesSummary, campaign.deadline, JSON.stringify(campaign.targetPlatforms),
+      JSON.stringify(campaign.metrics), new Date().toISOString().split('T')[0]
     );
-
     return this.getCampaignById(campaign.id)!;
   },
 
@@ -812,19 +714,10 @@ export const db = {
   getDeals(filters?: { creatorId?: string; campaignId?: string }): Deal[] {
     let query = 'SELECT * FROM deals WHERE 1=1';
     const bindings: any[] = [];
-
-    if (filters?.creatorId) {
-      query += ' AND creator_id = ?';
-      bindings.push(filters.creatorId);
-    }
-    if (filters?.campaignId) {
-      query += ' AND campaign_id = ?';
-      bindings.push(filters.campaignId);
-    }
-
+    if (filters?.creatorId) { query += ' AND creator_id = ?'; bindings.push(filters.creatorId); }
+    if (filters?.campaignId) { query += ' AND campaign_id = ?'; bindings.push(filters.campaignId); }
     query += ' ORDER BY created_at DESC';
-    const rows = sqlite.prepare(query).all(...bindings);
-    return rows.map(rowToDeal);
+    return sqlite.prepare(query).all(...bindings).map(rowToDeal);
   },
 
   getDealById(id: string): Deal | null {
@@ -842,40 +735,19 @@ export const db = {
         arbitration_verdict, created_at, deadline, completed_at
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
-      deal.id,
-      deal.campaignId || null,
-      deal.campaignTitle,
-      deal.brandName,
-      deal.brandLogo,
-      deal.creatorId,
-      deal.creatorName,
-      deal.creatorHandle,
-      deal.creatorAvatar,
-      deal.platform,
-      deal.packageTitle,
-      deal.amount,
-      deal.escrowStatus,
-      deal.stage,
-      JSON.stringify(deal.deliverables),
-      deal.briefNotes || null,
-      deal.draftNotes || null,
-      deal.draftMediaUrl || null,
-      deal.livePostUrl || null,
-      deal.disputeReason || null,
-      deal.disputeOpenedAt || null,
-      deal.arbitrationVerdict || null,
-      deal.createdAt || new Date().toISOString().split('T')[0],
-      deal.deadline,
-      deal.completedAt || null
+      deal.id, deal.campaignId || null, deal.campaignTitle, deal.brandName, deal.brandLogo,
+      deal.creatorId, deal.creatorName, deal.creatorHandle, deal.creatorAvatar, deal.platform,
+      deal.packageTitle, deal.amount, deal.escrowStatus, deal.stage, JSON.stringify(deal.deliverables),
+      deal.briefNotes || null, deal.draftNotes || null, deal.draftMediaUrl || null, deal.livePostUrl || null,
+      deal.disputeReason || null, deal.disputeOpenedAt || null, deal.arbitrationVerdict || null,
+      deal.createdAt || new Date().toISOString().split('T')[0], deal.deadline, deal.completedAt || null
     );
-
     return this.getDealById(deal.id)!;
   },
 
   updateDeal(id: string, updates: Partial<Deal>): Deal | null {
     const current = this.getDealById(id);
     if (!current) return null;
-
     const merged = { ...current, ...updates };
 
     sqlite.prepare(`
@@ -885,19 +757,61 @@ export const db = {
         arbitration_verdict = ?, completed_at = ?
       WHERE id = ?
     `).run(
-      merged.escrowStatus,
-      merged.stage,
-      merged.draftNotes || null,
-      merged.draftMediaUrl || null,
-      merged.livePostUrl || null,
-      merged.disputeReason || null,
-      merged.disputeOpenedAt || null,
-      merged.arbitrationVerdict || null,
-      merged.completedAt || null,
-      id
+      merged.escrowStatus, merged.stage, merged.draftNotes || null, merged.draftMediaUrl || null,
+      merged.livePostUrl || null, merged.disputeReason || null, merged.disputeOpenedAt || null,
+      merged.arbitrationVerdict || null, merged.completedAt || null, id
+    );
+    return this.getDealById(id);
+  },
+
+  // --- FINANCIAL LEDGER & TRANSACTIONS ---
+  getTransactions(filters?: { dealId?: string; type?: string }): Transaction[] {
+    let query = 'SELECT * FROM transactions WHERE 1=1';
+    const bindings: any[] = [];
+    if (filters?.dealId) { query += ' AND deal_id = ?'; bindings.push(filters.dealId); }
+    if (filters?.type) { query += ' AND type = ?'; bindings.push(filters.type); }
+    query += ' ORDER BY created_at DESC';
+    return sqlite.prepare(query).all(...bindings).map(rowToTransaction);
+  },
+
+  createTransaction(tx: Omit<Transaction, 'id' | 'createdAt'> & { id?: string }): Transaction {
+    const id = tx.id || `tx-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+    const createdAt = new Date().toISOString().replace('T', ' ').slice(0, 19);
+
+    sqlite.prepare(`
+      INSERT INTO transactions (
+        id, deal_id, type, amount, platform_fee, net_amount, currency,
+        payment_method, payment_intent_id, status, payer_name, recipient_name, created_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      id, tx.dealId || null, tx.type, tx.amount, tx.platformFee || 0, tx.netAmount,
+      tx.currency || 'USD', tx.paymentMethod, tx.paymentIntentId || null,
+      tx.status, tx.payerName, tx.recipientName, createdAt
     );
 
-    return this.getDealById(id);
+    return sqlite.prepare('SELECT * FROM transactions WHERE id = ?').all(id).map(rowToTransaction)[0];
+  },
+
+  getPayoutAccounts(creatorId: string): PayoutAccount[] {
+    const rows = sqlite.prepare('SELECT * FROM payout_accounts WHERE creator_id = ? ORDER BY is_default DESC, created_at DESC').all(creatorId);
+    return rows.map(rowToPayoutAccount);
+  },
+
+  createPayoutAccount(po: Omit<PayoutAccount, 'id' | 'createdAt'>): PayoutAccount {
+    const id = `po-${Date.now()}`;
+    const createdAt = new Date().toISOString().split('T')[0];
+
+    // If default, unset previous defaults
+    if (po.isDefault) {
+      sqlite.prepare('UPDATE payout_accounts SET is_default = 0 WHERE creator_id = ?').run(po.creatorId);
+    }
+
+    sqlite.prepare(`
+      INSERT INTO payout_accounts (id, creator_id, bank_name, account_number_masked, routing_number, account_holder_name, currency, is_default, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(id, po.creatorId, po.bankName, po.accountNumberMasked, po.routingNumber, po.accountHolderName, po.currency || 'USD', po.isDefault ? 1 : 0, createdAt);
+
+    return sqlite.prepare('SELECT * FROM payout_accounts WHERE id = ?').all(id).map(rowToPayoutAccount)[0];
   },
 
   // --- ADMIN & METRICS ---
@@ -906,6 +820,7 @@ export const db = {
     const creators = this.getCreators();
     const campaigns = this.getCampaigns();
     const config = this.getConfig();
+    const transactions = this.getTransactions();
 
     const totalVolume = deals.reduce((acc, d) => acc + d.amount, 0);
     const totalEscrowLocked = deals
@@ -918,7 +833,10 @@ export const db = {
       .filter(d => d.escrowStatus === 'disputed')
       .reduce((acc, d) => acc + d.amount, 0);
 
-    const platformRevenue = Math.round(totalEscrowReleased * (config.platformTakeRatePercent / 100));
+    // Platform revenue from fee ledger
+    const platformRevenue = transactions
+      .filter(t => t.type === 'deposit' || t.type === 'release')
+      .reduce((acc, t) => acc + t.platformFee, 0) || Math.round(totalEscrowReleased * (config.platformTakeRatePercent / 100));
 
     return {
       totalVolume,

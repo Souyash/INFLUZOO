@@ -23,6 +23,7 @@ import { WalletPayout } from './components/creator/WalletPayout';
 import { AdminDashboard } from './components/admin/AdminDashboard';
 import { VerificationQueue } from './components/admin/VerificationQueue';
 import { EscrowArbitrator } from './components/admin/EscrowArbitrator';
+import { TransactionLedger } from './components/admin/TransactionLedger';
 import { PlatformSettings } from './components/admin/PlatformSettings';
 import { AuditLogs } from './components/admin/AuditLogs';
 
@@ -31,6 +32,7 @@ import { AiAssistantModal } from './components/common/AiAssistantModal';
 import { Toast } from './components/common/Toast';
 import { AuthModal } from './components/auth/AuthModal';
 import { CreatorSignupSurveyModal } from './components/auth/CreatorSignupSurveyModal';
+import { PaymentGatewayModal } from './components/payments/PaymentGatewayModal';
 import { CreatorOnboarding } from './components/auth/CreatorOnboarding';
 import { BrandOnboarding } from './components/auth/BrandOnboarding';
 import { AdminLoginModal } from './components/auth/AdminLoginModal';
@@ -42,7 +44,10 @@ const MainContent: React.FC = () => {
     creatorTab, 
     adminTab,
     creatorSurveyModalOpen,
-    setCreatorSurveyModalOpen
+    setCreatorSurveyModalOpen,
+    paymentModalOpen,
+    setPaymentModalOpen,
+    selectedDealForPayment
   } = useApp();
 
   return (
@@ -82,6 +87,7 @@ const MainContent: React.FC = () => {
           {adminTab === 'overview' && <AdminDashboard />}
           {adminTab === 'verifications' && <VerificationQueue />}
           {adminTab === 'disputes' && <EscrowArbitrator />}
+          {adminTab === 'transactions' && <TransactionLedger />}
           {adminTab === 'settings' && <PlatformSettings />}
           {adminTab === 'audit' && <AuditLogs />}
         </div>
@@ -94,6 +100,11 @@ const MainContent: React.FC = () => {
       <CreatorSignupSurveyModal 
         isOpen={creatorSurveyModalOpen} 
         onClose={() => setCreatorSurveyModalOpen(false)} 
+      />
+      <PaymentGatewayModal 
+        isOpen={paymentModalOpen} 
+        onClose={() => setPaymentModalOpen(false)} 
+        deal={selectedDealForPayment} 
       />
       <CreatorOnboarding />
       <BrandOnboarding />

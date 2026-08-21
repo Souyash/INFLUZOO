@@ -8,6 +8,7 @@ import { dealsRouter } from './routes/deals.js';
 import { escrowRouter } from './routes/escrow.js';
 import { adminRouter } from './routes/admin.js';
 import { aiRouter } from './routes/ai.js';
+import { paymentsRouter } from './routes/payments.js';
 
 dotenv.config();
 
@@ -40,6 +41,7 @@ app.use('/api/creators', creatorsRouter);
 app.use('/api/campaigns', campaignsRouter);
 app.use('/api/deals', dealsRouter);
 app.use('/api/escrow', escrowRouter);
+app.use('/api/payments', paymentsRouter);
 app.use('/api/admin', adminRouter);
 app.use('/api/ai', aiRouter);
 

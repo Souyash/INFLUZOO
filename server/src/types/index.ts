@@ -74,7 +74,6 @@ export interface Creator {
   }[];
   packages: CreatorPackage[];
   featured?: boolean;
-  // KYC & Survey Data
   kycPhoto?: string;
   kycSubmittedAt?: string;
   kycReviewedAt?: string;
@@ -148,10 +147,41 @@ export interface Campaign {
   };
 }
 
+export type TransactionType = 'deposit' | 'release' | 'platform_fee' | 'withdrawal' | 'refund';
+export type PaymentMethodType = 'stripe_card' | 'apple_pay' | 'google_pay' | 'bank_transfer' | 'escrow_wallet';
+
+export interface Transaction {
+  id: string;
+  dealId?: string;
+  type: TransactionType;
+  amount: number;
+  platformFee: number;
+  netAmount: number;
+  currency: string;
+  paymentMethod: PaymentMethodType;
+  paymentIntentId?: string;
+  status: 'succeeded' | 'pending' | 'failed';
+  payerName: string;
+  recipientName: string;
+  createdAt: string;
+}
+
+export interface PayoutAccount {
+  id: string;
+  creatorId: string;
+  bankName: string;
+  accountNumberMasked: string;
+  routingNumber: string;
+  accountHolderName: string;
+  currency: string;
+  isDefault: boolean;
+  createdAt: string;
+}
+
 export interface AuditLog {
   id: string;
   action: string;
-  entityType: 'escrow' | 'creator' | 'campaign' | 'deal' | 'config' | 'auth';
+  entityType: 'escrow' | 'creator' | 'campaign' | 'deal' | 'config' | 'auth' | 'payment';
   entityId: string;
   details: string;
   actor: string;
@@ -191,17 +221,4 @@ export interface User {
   createdAt: string;
   creatorProfileId?: string;
   brandProfileId?: string;
-}
-
-export interface Session {
-  token: string;
-  user: User;
-  expiresAt: string;
-}
-
-export interface OTPRecord {
-  emailOrPhone: string;
-  code: string;
-  expiresAt: number;
-  role: UserRole;
 }
